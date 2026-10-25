@@ -1,9 +1,10 @@
 {
-  "name": "Patrons",
+  "id": "/patrons-couture/",
+  "name": "Patrons de couture",
   "short_name": "Patrons",
   "description": "Classer et retrouver mes patrons de couture",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/patrons-couture/",
+  "scope": "/patrons-couture/",
   "display": "standalone",
   "background_color": "#faf6f1",
   "theme_color": "#b5532f",
