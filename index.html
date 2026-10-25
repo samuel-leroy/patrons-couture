@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Patrons</title>
+<meta name="theme-color" content="#b5532f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#faf6f1;--card:#fff;--ink:#2b2420;--muted:#7a6e66;--line:#e8dfd6;--accent:#b5532f;--accent-ink:#fff;--chip:#f1e8df;--danger:#b3261e;--ok:#3d8b4f;--warn:#d98a1e;--r:14px}
+@media(prefers-color-scheme:dark){:root{--bg:#1b1715;--card:#26201d;--ink:#f1e9e2;--muted:#a49890;--line:#383029;--accent:#d97a56;--accent-ink:#1b1715;--chip:#352c27;--danger:#f2877f}}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+header{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top)) 14px 8px;border-bottom:1px solid var(--line)}
+.top{display:flex;align-items:center;gap:8px;max-width:1100px;margin:0 auto}
+h1{font:600 24px Georgia,"Times New Roman",serif;margin:0;flex:1;letter-spacing:.2px}
+.ib{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--card);display:grid;place-items:center;position:relative;font-size:18px}
+.dot{position:absolute;right:6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--muted);border:2px solid var(--card)}
+.dot.ok{background:var(--ok)}.dot.busy,.dot.off{background:var(--warn)}.dot.err{background:var(--danger)}
+.search{max-width:1100px;margin:8px auto 0;display:flex;gap:8px}
+.search input{flex:1;padding:11px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);min-width:0}
+.chips{max-width:1100px;margin:8px auto 0;display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:5px 12px;font-size:14px;white-space:nowrap}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+main{max-width:1100px;margin:0 auto;padding:14px 14px 110px}
+.banner{background:var(--chip);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner span{flex:1;min-width:180px}
+.count{color:var(--muted);font-size:14px;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;text-align:left;padding:0;display:flex;flex-direction:column}
+.ph{aspect-ratio:3/4;background:var(--chip);display:grid;place-items:center;font:600 42px Georgia,serif;color:var(--muted);position:relative;overflow:hidden}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.star{position:absolute;right:8px;top:6px;color:#f5b301;font-size:20px;text-shadow:0 1px 3px rgba(0,0,0,.45)}
+.pdfb{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;border-radius:6px;padding:1px 6px}
+.meta{padding:9px 11px 11px}
+.meta b{display:block;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.meta small{color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:50px 20px}
+.fab{position:fixed;right:max(18px,calc(50vw - 540px));bottom:calc(20px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-ink);font-size:32px;box-shadow:0 6px 18px rgba(0,0,0,.28);z-index:6}
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.45);display:flex;justify-content:center;align-items:flex-end}
+.panel{background:var(--bg);width:100%;max-width:680px;height:96dvh;border-radius:20px 20px 0 0;display:flex;flex-direction:column;overflow:hidden}
+@media(min-width:700px){.sheet{align-items:center}.panel{height:90vh;border-radius:20px}}
+.ph-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.ph-head h2{margin:0;flex:1;font:600 19px Georgia,serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.body{flex:1;overflow:auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom))}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;padding:10px 15px;font-weight:500}
+.btn.pri{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.dng{color:var(--danger)}
+.btn:disabled{opacity:.55}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.big{width:100%;max-height:60vh;object-fit:contain;background:var(--chip);border-radius:var(--r);display:block}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:14px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.tg{display:inline-block;background:var(--chip);border-radius:999px;padding:2px 10px;margin:0 4px 4px 0;font-size:14px}
+label.f{display:block;margin:14px 0 0;font-size:14px;color:var(--muted)}
+.f input[type=text],.f select,.f textarea{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.f textarea{min-height:90px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sec{margin:22px 0 4px;font:600 17px Georgia,serif}
+.hint{color:var(--muted);font-size:14px;margin:4px 0}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + env(safe-area-inset-bottom));background:#2b2420;color:#fff;padding:10px 16px;border-radius:12px;z-index:50;max-width:90vw;font-size:15px}
+.hidden{display:none!important}
+.rm{border:0;background:none;padding:0 0 0 6px;color:var(--muted)}
+.welcome{text-align:center;padding:40px 10px}
+.welcome h2{font:600 22px Georgia,serif}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <h1>Patrons</h1>
+    <button class="ib" id="bFilter" title="Filtres" aria-label="Filtres">⚲</button>
+    <button class="ib" id="bSync" title="Synchronisation" aria-label="Synchronisation">☁<span class="dot" id="dot"></span></button>
+    <button class="ib" id="bSet" title="Paramètres" aria-label="Paramètres">☰</button>
+  </div>
+  <div class="search"><input id="q" type="search" placeholder="Rechercher un patron, un tissu, un tag…" autocomplete="off"></div>
+  <div class="chips" id="catChips"></div>
+</header>
+<main>
+  <div id="banner"></div>
+  <p class="count" id="count"></p>
+  <div class="grid" id="grid"></div>
+  <div class="empty hidden" id="empty"></div>
+</main>
+<button class="fab" id="bAdd" aria-label="Ajouter un patron">＋</button>
+<div id="sheetHost"></div>
+
+<script>
+/* ============ CONFIGURATION ============ */
+// Collez ici l'ID client Google (le même que celui du Carnet d'entretien).
+const CLIENT_ID = '550561733868-8d610jk9639s3uu5sb0hrtjj7gg2mgot.apps.googleusercontent.com';
+const APP_VERSION = '1.0';
+const RELEASE_DATE = '25/10/2026';
+const DATA_VERSION = 1;
+const SCOPE = 'https://www.googleapis.com/auth/drive.file';
+const ROOT_NAME = 'Patrons couture';
+const DATA_NAME = 'patrons.json';
+const BACKUPS_KEPT = 20;
+const DEFAULT_SETTINGS = {
+  categories: ['Haut','Bas','Robe','Jupe','Pantalon','Veste / Manteau','Sous-vêtement','Accessoire','Autre'],
+  persons: ['Femme','Homme','Enfant','Bébé','Unisexe'],
+  seasons: ['Printemps','Été','Automne','Hiver','Toutes saisons'],
+  fabrics: ['Coton','Lin','Jersey','Viscose','Laine','Satin','Polaire','Denim','Soie','Simili cuir'],
+  statuses: ['À coudre','Testé','Validé','À améliorer']
+};
+const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',fabrics:'Tissus',statuses:'Statuts'};
+const DIFFS = {'1':'Facile','2':'Moyen','3':'Difficile'};
+
+/* ============ OUTILS ============ */
+const $ = (s, r=document) => r.querySelector(s);
+function h(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  for (const [k,v] of Object.entries(attrs||{})){
+    if (v==null || v===false) continue;
+    if (k==='class') e.className=v;
+    else if (k==='style') e.style.cssText=v;
+    else if (k==='value') e.value=v;
+    else if (k==='checked') e.checked=true;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v===true?'':v);
+  }
+  for (const c of kids.flat()){ if (c==null||c===false) continue; e.append(c.nodeType?c:document.createTextNode(c)); }
+  return e;
+}
+const clone = o => JSON.parse(JSON.stringify(o));
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const fold = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+const wait = ms => new Promise(r=>setTimeout(r,ms));
+function toast(msg){ const t=h('div',{class:'toast'},msg); document.body.append(t); setTimeout(()=>t.remove(),3200); }
+function fmtDate(ts){ return ts? new Date(ts).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '—'; }
+
+/* stockage local (IndexedDB) : copie de travail, fonctionne hors connexion */
+const idb = () => new Promise((res,rej)=>{const r=indexedDB.open('patrons',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function kvGet(k){const db=await idb();return new Promise((res,rej)=>{const q=db.transaction('kv').objectStore('kv').get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}
+async function kvSet(k,v){const db=await idb();return new Promise((res,rej)=>{const t=db.transaction('kv','readwrite');t.objectStore('kv').put(v,k);t.oncomplete=()=>res();t.onerror=()=>rej(t.error)})}
+
+/* ============ MODÈLE DE DONNÉES (jamais de perte) ============ */
+function normRec(p){
+  return Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,photoId:'',thumb:'',pdfId:'',pdfName:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
+}
+// Les champs inconnus sont conservés ; les nouveaux champs reçoivent une valeur par défaut.
+function migrate(d){
+  d = d || {};
+  d.patterns = (d.patterns||[]).map(normRec);
+  d.settings = Object.assign({updated:0}, clone(DEFAULT_SETTINGS), d.settings||{});
+  d.purged = d.purged || {};
+  d.version = Math.max(d.version||1, DATA_VERSION);
+  // Exemple pour plus tard : if (d.version < 2) { ...transformer sans rien supprimer...; d.version = 2; }
+  return d;
+}
+function merge(a,b){
+  const purged = Object.assign({}, a.purged, b.purged);
+  const m = new Map();
+  for (const p of [...a.patterns, ...b.patterns]){
+    if (purged[p.id]) continue;
+    const q = m.get(p.id);
+    if (!q || (p.updated||0) > (q.updated||0)) m.set(p.id, p);
+  }
+  return {version:Math.max(a.version,b.version), patterns:[...m.values()],
+    settings:(a.settings.updated||0)>=(b.settings.updated||0)?a.settings:b.settings, purged};
+}
+const sig = d => JSON.stringify({p:d.patterns.slice().sort((x,y)=>x.id<y.id?-1:1),s:d.settings,u:d.purged});
+
+const state = {data:migrate(null), dirty:false, f:{q:'',cat:'',person:'',season:'',status:'',fav:false,sort:'recent'},
+  sync:{st:'off',last:+localStorage.lastSync||0,err:''}};
+async function saveLocal(){ await kvSet('data',{data:state.data,dirty:state.dirty}); }
+
+/* ============ AUTH GOOGLE + API DRIVE ============ */
+let tokenClient=null, tok=null, tokExp=0;
+function configured(){ return !CLIENT_ID.startsWith('COLLER_ICI'); }
+function whenGis(cb){ if (window.google && google.accounts && google.accounts.oauth2) cb(); else setTimeout(()=>whenGis(cb),300); }
+function getToken(interactive){
+  if (tok && Date.now()<tokExp) return Promise.resolve(tok);
+  return new Promise((res,rej)=>{
+    if (!configured()) return rej(new Error('ID client Google non renseigné'));
+    if (!(window.google && google.accounts)) return rej(new Error('Google indisponible (hors connexion ?)'));
+    if (!tokenClient) tokenClient = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,callback:()=>{}});
+    tokenClient.callback = r => {
+      if (r.error) return rej(new Error(r.error));
+      tok=r.access_token; tokExp=Date.now()+(r.expires_in-90)*1000; localStorage.signed='1'; res(tok);
+    };
+    tokenClient.error_callback = e => rej(new Error(e.type||'connexion annulée'));
+    tokenClient.requestAccessToken({prompt: localStorage.signed ? '' : (interactive?'select_account':'')});
+  });
+}
+async function api(url, opts={}, retry=true){
+  const t = await getToken(false);
+  const r = await fetch(url, Object.assign({}, opts, {headers:Object.assign({Authorization:'Bearer '+t}, opts.headers||{})}));
+  if (r.status===401 && retry){ tok=null; return api(url,opts,false); }
+  if (!r.ok) throw new Error('Drive '+r.status+' '+(await r.text()).slice(0,160));
+  return r;
+}
+const DRIVE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
+const ids = {root:localStorage.rootId||'', files:localStorage.filesId||'', backups:localStorage.backupsId||'', data:localStorage.dataId||''};
+async function listFiles(q, extra=''){
+  const r = await api(DRIVE+'?fields=files(id,name,createdTime)&pageSize=100&q='+encodeURIComponent(q)+extra);
+  return (await r.json()).files;
+}
+async function ensureFolder(name, parent){
+  const q = `name='${name}' and mimeType='application/vnd.google-apps.folder' and trashed=false` + (parent?` and '${parent}' in parents`:'');
+  const f = await listFiles(q);
+  if (f.length) return f[0].id;
+  const r = await api(DRIVE+'?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:parent?[parent]:undefined})});
+  return (await r.json()).id;
+}
+async function ensureFolders(){
+  if (!ids.root){ ids.root = await ensureFolder(ROOT_NAME); localStorage.rootId=ids.root; }
+  if (!ids.files){ ids.files = await ensureFolder('Fichiers', ids.root); localStorage.filesId=ids.files; }
+  if (!ids.backups){ ids.backups = await ensureFolder('Sauvegardes', ids.root); localStorage.backupsId=ids.backups; }
+}
+async function multipart(meta, blob, mime){
+  const b = 'pat'+Math.random().toString(36).slice(2);
+  const body = new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: ${mime}\r\n\r\n`, blob, `\r\n--${b}--`]);
+  const r = await api(UP+'?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body});
+  return (await r.json()).id;
+}
+async function uploadFile(blob, name, mime){ await ensureFolders(); return multipart({name,parents:[ids.files]}, blob, mime); }
+async function trashFile(id){ if(!id) return; try{ await api(DRIVE+'/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({trashed:true})}); }catch(e){} }
+const blobCache = new Map();
+async function fileBlob(id, mime){
+  if (blobCache.has(id)) return blobCache.get(id);
+  const r = await api(DRIVE+'/'+id+'?alt=media'); const b = await r.blob();
+  const out = mime ? new Blob([b],{type:mime}) : b; blobCache.set(id,out); return out;
+}
+
+/* ---- synchronisation ---- */
+async function fetchRemote(){
+  await ensureFolders();
+  if (!ids.data){
+    const f = await listFiles(`name='${DATA_NAME}' and '${ids.root}' in parents and trashed=false`);
+    if (!f.length) return null;
+    ids.data=f[0].id; localStorage.dataId=ids.data;
+  }
+  let r;
+  try { r = await api(DRIVE+'/'+ids.data+'?alt=media'); }
+  catch(e){ if (/ 404 /.test(e.message)){ ids.data=''; localStorage.removeItem('dataId'); return fetchRemote(); } throw e; }
+  const txt = await r.text();
+  let json; try{ json = JSON.parse(txt); }catch(e){ throw new Error('Fichier de données Drive illisible : synchro arrêtée pour protéger vos données'); }
+  return {data:migrate(json), raw:txt};
+}
+async function pushRemote(d){
+  const body = JSON.stringify(Object.assign({}, d, {savedAt:Date.now()}));
+  if (ids.data){
+    await api(UP+'/'+ids.data+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});
+  } else {
+    ids.data = await multipart({name:DATA_NAME,parents:[ids.root]}, new Blob([body]), 'application/json');
+    localStorage.dataId = ids.data;
+  }
+}
+async function maybeBackup(rawRemote){
+  const today = new Date().toISOString().slice(0,10);
+  if (localStorage.lastBackup===today) return;
+  const name = 'sauvegarde-'+today+'.json';
+  const ex = await listFiles(`name='${name}' and '${ids.backups}' in parents and trashed=false`);
+  if (!ex.length) await multipart({name,parents:[ids.backups]}, new Blob([rawRemote]), 'application/json');
+  localStorage.lastBackup = today;
+  const all = await listFiles(`'${ids.backups}' in parents and trashed=false`, '&orderBy='+encodeURIComponent('createdTime desc'));
+  for (const f of all.slice(BACKUPS_KEPT)) await trashFile(f.id);
+}
+let syncing=false, syncTimer=null;
+function setSync(st, err){ state.sync.st=st; state.sync.err=err||''; $('#dot').className='dot '+st; renderBanner(); }
+function scheduleSync(){ clearTimeout(syncTimer); syncTimer=setTimeout(()=>sync(false),1500); }
+async function sync(interactive){
+  if (syncing) return;
+  if (!configured()){ setSync('err','ID client Google non renseigné'); return; }
+  if (!navigator.onLine){ setSync('off'); return; }
+  syncing=true; setSync('busy');
+  try{
+    await getToken(interactive);
+    const remote = await fetchRemote();
+    const merged = remote ? merge(state.data, remote.data) : state.data;
+    if (!remote || sig(merged)!==sig(remote.data)){
+      if (remote) await maybeBackup(remote.raw);
+      await pushRemote(merged);
+    }
+    state.data = merged; state.dirty=false; await saveLocal();
+    state.sync.last = Date.now(); localStorage.lastSync = state.sync.last;
+    setSync('ok'); render();
+  }catch(e){
+    console.error(e);
+    setSync(/popup|annul|access_denied|interaction|login_required|consent/i.test(e.message)?'off':'err', e.message);
+  }finally{ syncing=false; }
+}
+
+/* ============ IMAGES ============ */
+async function loadBitmap(file){
+  if (window.createImageBitmap){ try{ return await createImageBitmap(file,{imageOrientation:'from-image'}); }catch(e){} }
+  return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=URL.createObjectURL(file); });
+}
+async function resize(file, max, q){
+  const bm = await loadBitmap(file);
+  const w = bm.width||bm.naturalWidth, hh = bm.height||bm.naturalHeight, s = Math.min(1, max/Math.max(w,hh));
+  const c = document.createElement('canvas'); c.width=Math.round(w*s); c.height=Math.round(hh*s);
+  c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+  return {canvas:c, blob:await new Promise(r=>c.toBlob(r,'image/jpeg',q))};
+}
+
+/* ============ INTERFACE : LISTE ============ */
+function visible(){
+  const f=state.f; let l=state.data.patterns.filter(p=>!p.deleted);
+  if (f.cat) l=l.filter(p=>p.category===f.cat);
+  if (f.person) l=l.filter(p=>p.person===f.person);
+  if (f.season) l=l.filter(p=>p.season===f.season);
+  if (f.status) l=l.filter(p=>p.status===f.status);
+  if (f.fav) l=l.filter(p=>p.favorite);
+  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.source,p.sizes,p.status,p.notes,...p.fabrics,...p.tags].join(' ')).includes(q)); }
+  if (f.sort==='name') l.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
+  else if (f.sort==='created') l.sort((a,b)=>b.created-a.created);
+  else l.sort((a,b)=>b.updated-a.updated);
+  return l;
+}
+function activeFilters(){ const f=state.f; return [f.person,f.season,f.status,f.fav].filter(Boolean).length; }
+function render(){
+  const cc=$('#catChips'); cc.replaceChildren(
+    h('button',{class:'chip'+(!state.f.cat?' on':''),onclick:()=>{state.f.cat='';render()}},'Tous'),
+    ...state.data.settings.categories.map(c=>h('button',{class:'chip'+(state.f.cat===c?' on':''),onclick:()=>{state.f.cat=state.f.cat===c?'':c;render()}},c)));
+  const l=visible(), total=state.data.patterns.filter(p=>!p.deleted).length;
+  $('#count').textContent = total ? `${l.length} patron${l.length>1?'s':''}${l.length!==total?' sur '+total:''}` : '';
+  $('#bFilter').style.background = activeFilters()? 'var(--accent)':''; $('#bFilter').style.color = activeFilters()? 'var(--accent-ink)':'';
+  const g=$('#grid'); g.replaceChildren(...l.map(card));
+  const em=$('#empty');
+  if (!total){ em.classList.remove('hidden'); em.replaceChildren(h('div',{class:'welcome'},h('h2',{},'Votre bibliothèque de patrons'),h('p',{},'Ajoutez votre premier patron avec le bouton ＋ : photo du vêtement, PDF du patron et quelques infos pour le retrouver.'))); }
+  else if (!l.length){ em.classList.remove('hidden'); em.replaceChildren('Aucun patron ne correspond à cette recherche.'); }
+  else em.classList.add('hidden');
+}
+function card(p){
+  return h('button',{class:'card',onclick:()=>openDetail(p.id)},
+    h('div',{class:'ph'}, p.thumb? h('img',{src:p.thumb,alt:'',loading:'lazy'}) : (p.name[0]||'?').toUpperCase(),
+      p.favorite&&h('span',{class:'star'},'★'), p.pdfId&&h('span',{class:'pdfb'},'PDF')),
+    h('div',{class:'meta'},h('b',{},p.name), h('small',{},[p.category,p.person].filter(Boolean).join(' · ')||' ')));
+}
+function renderBanner(){
+  const b=$('#banner'); b.replaceChildren();
+  if (!configured()) { b.append(h('div',{class:'banner'},h('span',{},'Configuration requise : collez l\'ID client Google dans index.html (voir INSTALLATION.md).'))); return; }
+  if (state.sync.st==='err') b.append(h('div',{class:'banner'},h('span',{},'Synchro impossible : '+state.sync.err),h('button',{class:'btn',onclick:()=>sync(true)},'Réessayer')));
+  else if (state.sync.st==='off' && navigator.onLine) b.append(h('div',{class:'banner'},h('span',{},localStorage.signed?'Reconnexion à Google Drive nécessaire.':'Connectez-vous à Google pour retrouver et sauvegarder vos patrons dans le Drive.'),h('button',{class:'btn pri',onclick:()=>sync(true)},'Se connecter')));
+}
+
+/* ============ FEUILLES (modales) ============ */
+function openSheet(title, body, opts={}){
+  closeSheet();
+  const host=$('#sheetHost');
+  const back = opts.back;
+  host.append(h('div',{class:'sheet',id:'sheet',onclick:e=>{if(e.target.id==='sheet')(back||closeSheet)()}},
+    h('div',{class:'panel'},
+      h('div',{class:'ph-head'}, h('button',{class:'ib',onclick:back||closeSheet,'aria-label':'Fermer'},back?'‹':'✕'), h('h2',{},title), ...(opts.actions||[])),
+      h('div',{class:'body'},body))));
+}
+function closeSheet(){ $('#sheetHost').replaceChildren(); }
+
+function lines(p){
+  const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Source / marque',p.source],['Tailles',p.sizes]].filter(r=>r[1]);
+  const dl=h('dl',{class:'kv'});
+  for (const [k,v] of rows) dl.append(h('dt',{},k),h('dd',{},v));
+  if (p.fabrics.length) dl.append(h('dt',{},'Tissus'),h('dd',{},p.fabrics.map(x=>h('span',{class:'tg'},x))));
+  if (p.tags.length) dl.append(h('dt',{},'Tags'),h('dd',{},p.tags.map(x=>h('span',{class:'tg'},x))));
+  if (p.notes) dl.append(h('dt',{},'Notes'),h('dd',{style:'white-space:pre-wrap'},p.notes));
+  return dl;
+}
+function openDetail(id){
+  const p=state.data.patterns.find(x=>x.id===id); if(!p) return;
+  const img=h('img',{class:'big',alt:p.name,src:p.thumb||''});
+  const star=h('button',{class:'ib',onclick:async()=>{p.favorite=!p.favorite;p.updated=Date.now();await commit();star.textContent=p.favorite?'★':'☆';render()}},p.favorite?'★':'☆');
+  const body=h('div',{}, p.thumb||p.photoId? img : null,
+    h('div',{class:'row'},
+      p.pdfId && h('button',{class:'btn pri',onclick:()=>openPdf(p,false)},'Ouvrir le PDF'),
+      p.pdfId && h('button',{class:'btn',onclick:()=>openPdf(p,true)},'Télécharger'),
+      h('button',{class:'btn',onclick:()=>openForm(p.id)},'Modifier'),
+      h('button',{class:'btn dng',onclick:async()=>{ if(!confirm('Mettre ce patron à la corbeille ?')) return; p.deleted=true;p.deletedAt=Date.now();p.updated=Date.now(); await commit(); closeSheet(); render(); toast('Patron mis à la corbeille'); }},'Corbeille')),
+    lines(p));
+  openSheet(p.name, body, {actions:[star]});
+  if (p.photoId) fileBlob(p.photoId,'image/jpeg').then(b=>{img.src=URL.createObjectURL(b)}).catch(()=>{});
+}
+async function openPdf(p, download){
+  const w = download? null : window.open('','_blank');
+  try{
+    toast('Chargement du PDF…');
+    const b = await fileBlob(p.pdfId,'application/pdf'), url=URL.createObjectURL(b);
+    if (download){ const a=h('a',{href:url,download:p.pdfName||p.name+'.pdf'}); document.body.append(a); a.click(); a.remove(); }
+    else if (w) w.location.href=url; else location.href=url;
+  }catch(e){ if(w) w.close(); toast('PDF inaccessible : '+e.message); }
+}
+async function commit(){ state.dirty=true; await saveLocal(); scheduleSync(); }
+
+/* ---- formulaire ---- */
+function openForm(id){
+  const old = id && state.data.patterns.find(x=>x.id===id);
+  const p = old ? clone(old) : normRec({id:uid()});
+  const S = state.data.settings;
+  let newPhoto=null, newPdf=null;
+  const sel=(list,val)=>{ const l=[...list]; if(val&&!l.includes(val)) l.push(val); return l; };
+  const select=(name,list,val)=>h('select',{name},h('option',{value:''},'—'),...sel(list,val).map(x=>h('option',{value:x,selected:x===val},x)));
+  const fabrics=new Set(p.fabrics);
+  const fabBox=h('div',{style:'margin-top:6px'});
+  const drawFab=()=>fabBox.replaceChildren(...sel(S.fabrics,'').concat([...fabrics].filter(x=>!S.fabrics.includes(x))).map(x=>h('button',{type:'button',class:'chip'+(fabrics.has(x)?' on':''),style:'margin:0 6px 6px 0',onclick:()=>{fabrics.has(x)?fabrics.delete(x):fabrics.add(x);drawFab()}},x)));
+  drawFab();
+  const prev=h('img',{class:'big',style:p.thumb?'':'display:none',src:p.thumb||''});
+  const photoIn=h('input',{type:'file',accept:'image/*',onchange:e=>{newPhoto=e.target.files[0]||null;if(newPhoto){prev.src=URL.createObjectURL(newPhoto);prev.style.display='block'}}});
+  const pdfInfo=h('div',{class:'hint'},p.pdfName?('PDF actuel : '+p.pdfName):'Aucun PDF');
+  const pdfIn=h('input',{type:'file',accept:'application/pdf,.pdf',onchange:e=>{newPdf=e.target.files[0]||null;if(newPdf)pdfInfo.textContent='Nouveau PDF : '+newPdf.name}});
+  const f=h('form',{onsubmit:e=>e.preventDefault()},
+    prev,
+    h('label',{class:'f'},'Photo du vêtement',photoIn),
+    h('label',{class:'f'},'PDF du patron',pdfIn), pdfInfo,
+    h('label',{class:'f'},'Nom *',h('input',{type:'text',name:'name',value:p.name,required:true,autocomplete:'off'})),
+    h('div',{class:'two'},
+      h('label',{class:'f'},'Catégorie',select('category',S.categories,p.category)),
+      h('label',{class:'f'},'Pour qui',select('person',S.persons,p.person))),
+    h('div',{class:'two'},
+      h('label',{class:'f'},'Saison',select('season',S.seasons,p.season)),
+      h('label',{class:'f'},'Difficulté',h('select',{name:'difficulty'},h('option',{value:''},'—'),...Object.entries(DIFFS).map(([k,v])=>h('option',{value:k,selected:k===p.difficulty},v))))),
+    h('label',{class:'f'},'Tissus conseillés',fabBox),
+    h('div',{class:'two'},
+      h('label',{class:'f'},'Statut',select('status',S.statuses,p.status)),
+      h('label',{class:'f'},'Tailles',h('input',{type:'text',name:'sizes',value:p.sizes,placeholder:'ex. 34 au 46'}))),
+    h('label',{class:'f'},'Source / marque du patron',h('input',{type:'text',name:'source',value:p.source})),
+    h('label',{class:'f'},'Tags (séparés par des virgules)',h('input',{type:'text',name:'tags',value:p.tags.join(', ')})),
+    h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},p.notes)),
+    h('label',{class:'f',style:'display:flex;gap:8px;align-items:center'},h('input',{type:'checkbox',name:'favorite',checked:p.favorite}),'Favori'));
+  const save=h('button',{class:'btn pri',onclick:async()=>{
+    const v=n=>f.elements[n].value.trim();
+    if(!v('name')){ toast('Le nom est obligatoire'); return; }
+    save.disabled=true; save.textContent='Enregistrement…';
+    try{
+      if (newPhoto){
+        const full=await resize(newPhoto,1600,.85), th=await resize(newPhoto,360,.72);
+        const pid=await uploadFile(full.blob,v('name').replace(/[^\w\- ]+/g,'')+'-photo.jpg','image/jpeg');
+        if(p.photoId) trashFile(p.photoId);
+        p.photoId=pid; p.thumb=th.canvas.toDataURL('image/jpeg',.72);
+      }
+      if (newPdf){
+        const pid=await uploadFile(newPdf,newPdf.name,'application/pdf');
+        if(p.pdfId) trashFile(p.pdfId);
+        p.pdfId=pid; p.pdfName=newPdf.name;
+      }
+      Object.assign(p,{name:v('name'),category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),sizes:v('sizes'),source:v('source'),notes:f.elements.notes.value.trim(),favorite:f.elements.favorite.checked,fabrics:[...fabrics],tags:v('tags').split(',').map(s=>s.trim()).filter(Boolean)});
+      p.updated=Date.now(); if(!p.created) p.created=p.updated;
+      const i=state.data.patterns.findIndex(x=>x.id===p.id);
+      if(i>=0) state.data.patterns[i]=p; else state.data.patterns.push(p);
+      await commit(); closeSheet(); render(); toast('Patron enregistré');
+    }catch(e){
+      save.disabled=false; save.textContent='Enregistrer';
+      toast('Échec : '+e.message+(newPhoto||newPdf?' — connectez-vous à Drive pour ajouter des fichiers':''));
+    }
+  }},'Enregistrer');
+  openSheet(old?'Modifier le patron':'Nouveau patron', h('div',{},f,h('div',{class:'row'},save)));
+}
+
+/* ---- filtres ---- */
+function openFilters(){
+  const S=state.data.settings, F=state.f;
+  const sel=(key,list,label)=>h('label',{class:'f'},label,h('select',{onchange:e=>{F[key]=e.target.value}},h('option',{value:''},'Tous'),...list.map(x=>h('option',{value:x,selected:x===F[key]},x))));
+  const fav=h('input',{type:'checkbox',checked:F.fav,onchange:e=>{F.fav=e.target.checked}});
+  openSheet('Filtres', h('div',{},
+    sel('person',S.persons,'Pour qui'), sel('season',S.seasons,'Saison'), sel('status',S.statuses,'Statut'),
+    h('label',{class:'f',style:'display:flex;gap:8px;align-items:center'},fav,'Favoris uniquement'),
+    h('label',{class:'f'},'Trier par',h('select',{onchange:e=>{F.sort=e.target.value}},...[['recent','Modifiés récemment'],['created','Ajoutés récemment'],['name','Nom (A → Z)']].map(([k,v])=>h('option',{value:k,selected:k===F.sort},v)))),
+    h('div',{class:'row'},
+      h('button',{class:'btn pri',onclick:()=>{closeSheet();render()}},'Appliquer'),
+      h('button',{class:'btn',onclick:()=>{Object.assign(F,{person:'',season:'',status:'',fav:false,cat:''});closeSheet();render()}},'Tout effacer'))));
+}
+
+/* ---- paramètres ---- */
+function openSettings(){
+  const S=state.data.settings;
+  const body=h('div',{});
+  body.append(h('div',{class:'sec'},'Synchronisation'),
+    h('p',{class:'hint'},'Dernière synchro : '+fmtDate(state.sync.last)+(state.dirty?' (modifications à envoyer)':'')),
+    h('div',{class:'row'},h('button',{class:'btn pri',onclick:async()=>{await sync(true);openSettings();toast(state.sync.st==='ok'?'Synchronisé':'Synchro impossible')}},'Synchroniser maintenant')));
+  for (const [key,label] of Object.entries(LIST_LABELS)){
+    const box=h('div',{});
+    const draw=()=>box.replaceChildren(
+      h('div',{},...S[key].map(x=>h('span',{class:'tg'},x,h('button',{class:'rm',title:'Retirer de la liste','aria-label':'Retirer '+x,onclick:async()=>{
+        if(!confirm('Retirer « '+x+' » de la liste ? Les patrons qui l\'utilisent le gardent.')) return;
+        S[key]=S[key].filter(y=>y!==x); S.updated=Date.now(); await commit(); draw(); render();}},'×')))),
+      (()=>{const i=h('input',{type:'text',placeholder:'Ajouter…',style:'padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-top:6px'});
+        const add=async()=>{const v=i.value.trim(); if(!v||S[key].includes(v))return; S[key].push(v); S.updated=Date.now(); await commit(); draw(); render();};
+        i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();add()}});
+        return h('div',{},i,h('button',{class:'btn',style:'margin-left:6px',onclick:add},'Ajouter'));})());
+    draw(); body.append(h('div',{class:'sec'},label),box);
+  }
+  const nTrash=state.data.patterns.filter(p=>p.deleted).length;
+  body.append(h('div',{class:'sec'},'Données'),
+    h('p',{class:'hint'},'Une sauvegarde automatique est créée chaque jour dans Drive (Patrons couture › Sauvegardes, les '+BACKUPS_KEPT+' dernières sont gardées).'),
+    h('div',{class:'row'},
+      h('button',{class:'btn',onclick:exportJson},'Exporter (JSON)'),
+      h('button',{class:'btn',onclick:importJson},'Importer un fichier'),
+      h('button',{class:'btn',onclick:openTrash},'Corbeille ('+nTrash+')')),
+    h('div',{class:'sec'},'À propos'),
+    h('p',{class:'hint'},'Patrons — version '+APP_VERSION+' du '+RELEASE_DATE+'. Mettre à jour l\'application ne touche jamais aux données stockées dans Drive.'));
+  openSheet('Paramètres', body);
+}
+function exportJson(){
+  const a=h('a',{href:URL.createObjectURL(new Blob([JSON.stringify(state.data,null,1)],{type:'application/json'})),download:'patrons-'+new Date().toISOString().slice(0,10)+'.json'});
+  document.body.append(a); a.click(); a.remove();
+}
+function importJson(){
+  const i=h('input',{type:'file',accept:'application/json,.json',onchange:async e=>{
+    try{
+      const inc=migrate(JSON.parse(await e.target.files[0].text()));
+      for (const p of inc.patterns){ delete state.data.purged[p.id]; }
+      state.data=merge(state.data,inc); await commit(); render(); toast('Import terminé : '+inc.patterns.length+' patrons fusionnés');
+    }catch(err){ toast('Fichier invalide'); }
+  }}); i.click();
+}
+function openTrash(){
+  const l=state.data.patterns.filter(p=>p.deleted).sort((a,b)=>b.deletedAt-a.deletedAt);
+  const body=h('div',{}, l.length? null : h('p',{class:'hint'},'La corbeille est vide.'),
+    ...l.map(p=>h('div',{class:'row',style:'align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px'},
+      h('div',{style:'flex:1;min-width:140px'},h('b',{},p.name),h('div',{class:'hint'},'Supprimé le '+fmtDate(p.deletedAt))),
+      h('button',{class:'btn',onclick:async()=>{p.deleted=false;p.deletedAt=0;p.updated=Date.now();await commit();render();openTrash()}},'Restaurer'),
+      h('button',{class:'btn dng',onclick:async()=>{
+        if(!confirm('Supprimer définitivement « '+p.name+' » et ses fichiers ?')) return;
+        state.data.purged[p.id]=Date.now(); state.data.patterns=state.data.patterns.filter(x=>x.id!==p.id);
+        trashFile(p.photoId); trashFile(p.pdfId); await commit(); render(); openTrash();}},'Supprimer'))));
+  openSheet('Corbeille', body, {back:openSettings});
+}
+
+/* ============ DÉMARRAGE ============ */
+$('#q').addEventListener('input',e=>{state.f.q=e.target.value;render()});
+$('#bAdd').onclick=()=>openForm(null);
+$('#bFilter').onclick=openFilters;
+$('#bSet').onclick=openSettings;
+$('#bSync').onclick=()=>{ sync(true); toast('Synchronisation…'); };
+window.addEventListener('online',()=>sync(false));
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&localStorage.signed) sync(false); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
+(async function init(){
+  try{ const s=await kvGet('data'); if(s){ state.data=migrate(s.data); state.dirty=!!s.dirty; } }catch(e){}
+  render(); renderBanner();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
+  whenGis(()=>{ if (localStorage.signed) sync(false); else renderBanner(); });
+  if (!navigator.onLine) setSync('off');
+})();
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
