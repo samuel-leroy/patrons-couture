@@ -93,9 +93,9 @@ label.f{display:block;margin:14px 0 0;font-size:14px;color:var(--muted)}
 <script>
 /* ============ CONFIGURATION ============ */
 // Collez ici l'ID client Google (le même que celui du Carnet d'entretien).
-const CLIENT_ID = '550561733868-8d610jk9639s3uu5sb0hrtjj7gg2mgot.apps.googleusercontent.com';
-const APP_VERSION = '1.0';
-const RELEASE_DATE = '25/10/2026';
+const CLIENT_ID = 'COLLER_ICI_VOTRE_ID_CLIENT.apps.googleusercontent.com';
+const APP_VERSION = '1.1';
+const RELEASE_DATE = '26/10/2026';
 const DATA_VERSION = 1;
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ROOT_NAME = 'Patrons couture';
@@ -131,6 +131,12 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const fold = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
 const wait = ms => new Promise(r=>setTimeout(r,ms));
+// Mémoire locale propre à Patrons : clés préfixées pour ne jamais se mélanger à celles du Carnet d'entretien.
+const LS = new Proxy({}, {
+  get:(_,k)=>{ try{ return localStorage.getItem('patrons_'+k) }catch(e){ return null } },
+  set:(_,k,v)=>{ try{ localStorage.setItem('patrons_'+k,String(v)) }catch(e){} return true },
+  deleteProperty:(_,k)=>{ try{ localStorage.removeItem('patrons_'+k) }catch(e){} return true }
+});
 function toast(msg){ const t=h('div',{class:'toast'},msg); document.body.append(t); setTimeout(()=>t.remove(),3200); }
 function fmtDate(ts){ return ts? new Date(ts).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '—'; }
 
@@ -167,7 +173,7 @@ function merge(a,b){
 const sig = d => JSON.stringify({p:d.patterns.slice().sort((x,y)=>x.id<y.id?-1:1),s:d.settings,u:d.purged});
 
 const state = {data:migrate(null), dirty:false, f:{q:'',cat:'',person:'',season:'',status:'',fav:false,sort:'recent'},
-  sync:{st:'off',last:+localStorage.lastSync||0,err:''}};
+  sync:{st:'off',last:+LS.lastSync||0,err:''}};
 async function saveLocal(){ await kvSet('data',{data:state.data,dirty:state.dirty}); }
 
 /* ============ AUTH GOOGLE + API DRIVE ============ */
@@ -182,11 +188,24 @@ function getToken(interactive){
     if (!tokenClient) tokenClient = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPE,callback:()=>{}});
     tokenClient.callback = r => {
       if (r.error) return rej(new Error(r.error));
-      tok=r.access_token; tokExp=Date.now()+(r.expires_in-90)*1000; localStorage.signed='1'; res(tok);
+      tok=r.access_token; tokExp=Date.now()+(r.expires_in-90)*1000; LS.signed='1'; rememberAccount(tok); res(tok);
     };
     tokenClient.error_callback = e => rej(new Error(e.type||'connexion annulée'));
-    tokenClient.requestAccessToken({prompt: localStorage.signed ? '' : (interactive?'select_account':'')});
+    tokenClient.requestAccessToken({prompt: LS.signed ? '' : (interactive?'select_account':''), hint: LS.hint || undefined});
   });
+}
+async function rememberAccount(t){
+  if (LS.hint) return;
+  try{
+    const r = await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)',{headers:{Authorization:'Bearer '+t}});
+    const j = await r.json();
+    if (j.user && j.user.emailAddress) LS.hint = j.user.emailAddress;
+  }catch(e){}
+}
+function switchAccount(){
+  delete LS.hint; delete LS.signed; delete LS.rootId; delete LS.filesId; delete LS.backupsId; delete LS.dataId;
+  ids.root=ids.files=ids.backups=ids.data=''; tok=null; tokExp=0;
+  closeSheet(); sync(true);
 }
 async function api(url, opts={}, retry=true){
   const t = await getToken(false);
@@ -196,7 +215,7 @@ async function api(url, opts={}, retry=true){
   return r;
 }
 const DRIVE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
-const ids = {root:localStorage.rootId||'', files:localStorage.filesId||'', backups:localStorage.backupsId||'', data:localStorage.dataId||''};
+const ids = {root:LS.rootId||'', files:LS.filesId||'', backups:LS.backupsId||'', data:LS.dataId||''};
 async function listFiles(q, extra=''){
   const r = await api(DRIVE+'?fields=files(id,name,createdTime)&pageSize=100&q='+encodeURIComponent(q)+extra);
   return (await r.json()).files;
@@ -210,9 +229,9 @@ async function ensureFolder(name, parent){
   return (await r.json()).id;
 }
 async function ensureFolders(){
-  if (!ids.root){ ids.root = await ensureFolder(ROOT_NAME); localStorage.rootId=ids.root; }
-  if (!ids.files){ ids.files = await ensureFolder('Fichiers', ids.root); localStorage.filesId=ids.files; }
-  if (!ids.backups){ ids.backups = await ensureFolder('Sauvegardes', ids.root); localStorage.backupsId=ids.backups; }
+  if (!ids.root){ ids.root = await ensureFolder(ROOT_NAME); LS.rootId=ids.root; }
+  if (!ids.files){ ids.files = await ensureFolder('Fichiers', ids.root); LS.filesId=ids.files; }
+  if (!ids.backups){ ids.backups = await ensureFolder('Sauvegardes', ids.root); LS.backupsId=ids.backups; }
 }
 async function multipart(meta, blob, mime){
   const b = 'pat'+Math.random().toString(36).slice(2);
@@ -235,11 +254,11 @@ async function fetchRemote(){
   if (!ids.data){
     const f = await listFiles(`name='${DATA_NAME}' and '${ids.root}' in parents and trashed=false`);
     if (!f.length) return null;
-    ids.data=f[0].id; localStorage.dataId=ids.data;
+    ids.data=f[0].id; LS.dataId=ids.data;
   }
   let r;
   try { r = await api(DRIVE+'/'+ids.data+'?alt=media'); }
-  catch(e){ if (/ 404 /.test(e.message)){ ids.data=''; localStorage.removeItem('dataId'); return fetchRemote(); } throw e; }
+  catch(e){ if (/ 404 /.test(e.message)){ ids.data=''; delete LS.dataId; return fetchRemote(); } throw e; }
   const txt = await r.text();
   let json; try{ json = JSON.parse(txt); }catch(e){ throw new Error('Fichier de données Drive illisible : synchro arrêtée pour protéger vos données'); }
   return {data:migrate(json), raw:txt};
@@ -250,16 +269,16 @@ async function pushRemote(d){
     await api(UP+'/'+ids.data+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});
   } else {
     ids.data = await multipart({name:DATA_NAME,parents:[ids.root]}, new Blob([body]), 'application/json');
-    localStorage.dataId = ids.data;
+    LS.dataId = ids.data;
   }
 }
 async function maybeBackup(rawRemote){
   const today = new Date().toISOString().slice(0,10);
-  if (localStorage.lastBackup===today) return;
+  if (LS.lastBackup===today) return;
   const name = 'sauvegarde-'+today+'.json';
   const ex = await listFiles(`name='${name}' and '${ids.backups}' in parents and trashed=false`);
   if (!ex.length) await multipart({name,parents:[ids.backups]}, new Blob([rawRemote]), 'application/json');
-  localStorage.lastBackup = today;
+  LS.lastBackup = today;
   const all = await listFiles(`'${ids.backups}' in parents and trashed=false`, '&orderBy='+encodeURIComponent('createdTime desc'));
   for (const f of all.slice(BACKUPS_KEPT)) await trashFile(f.id);
 }
@@ -280,7 +299,7 @@ async function sync(interactive){
       await pushRemote(merged);
     }
     state.data = merged; state.dirty=false; await saveLocal();
-    state.sync.last = Date.now(); localStorage.lastSync = state.sync.last;
+    state.sync.last = Date.now(); LS.lastSync = state.sync.last;
     setSync('ok'); render();
   }catch(e){
     console.error(e);
@@ -339,7 +358,7 @@ function renderBanner(){
   const b=$('#banner'); b.replaceChildren();
   if (!configured()) { b.append(h('div',{class:'banner'},h('span',{},'Configuration requise : collez l\'ID client Google dans index.html (voir INSTALLATION.md).'))); return; }
   if (state.sync.st==='err') b.append(h('div',{class:'banner'},h('span',{},'Synchro impossible : '+state.sync.err),h('button',{class:'btn',onclick:()=>sync(true)},'Réessayer')));
-  else if (state.sync.st==='off' && navigator.onLine) b.append(h('div',{class:'banner'},h('span',{},localStorage.signed?'Reconnexion à Google Drive nécessaire.':'Connectez-vous à Google pour retrouver et sauvegarder vos patrons dans le Drive.'),h('button',{class:'btn pri',onclick:()=>sync(true)},'Se connecter')));
+  else if (state.sync.st==='off' && navigator.onLine) b.append(h('div',{class:'banner'},h('span',{},LS.signed?'Reconnexion à Google Drive nécessaire.':'Connectez-vous à Google pour retrouver et sauvegarder vos patrons dans le Drive.'),h('button',{class:'btn pri',onclick:()=>sync(true)},'Se connecter')));
 }
 
 /* ============ FEUILLES (modales) ============ */
@@ -472,7 +491,9 @@ function openSettings(){
   const body=h('div',{});
   body.append(h('div',{class:'sec'},'Synchronisation'),
     h('p',{class:'hint'},'Dernière synchro : '+fmtDate(state.sync.last)+(state.dirty?' (modifications à envoyer)':'')),
-    h('div',{class:'row'},h('button',{class:'btn pri',onclick:async()=>{await sync(true);openSettings();toast(state.sync.st==='ok'?'Synchronisé':'Synchro impossible')}},'Synchroniser maintenant')));
+    h('p',{class:'hint'},'Compte Google : '+(LS.hint||'non connecté')),
+    h('div',{class:'row'},h('button',{class:'btn pri',onclick:async()=>{await sync(true);openSettings();toast(state.sync.st==='ok'?'Synchronisé':'Synchro impossible')}},'Synchroniser maintenant'),
+      h('button',{class:'btn',onclick:()=>{ if(confirm('Changer de compte Google ? Vos données restent dans le Drive du compte actuel.')) switchAccount(); }},'Changer de compte')));
   for (const [key,label] of Object.entries(LIST_LABELS)){
     const box=h('div',{});
     const draw=()=>box.replaceChildren(
@@ -529,14 +550,14 @@ $('#bFilter').onclick=openFilters;
 $('#bSet').onclick=openSettings;
 $('#bSync').onclick=()=>{ sync(true); toast('Synchronisation…'); };
 window.addEventListener('online',()=>sync(false));
-document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&localStorage.signed) sync(false); });
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'&&LS.signed) sync(false); });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
 (async function init(){
   try{ const s=await kvGet('data'); if(s){ state.data=migrate(s.data); state.dirty=!!s.dirty; } }catch(e){}
   render(); renderBanner();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{});
-  whenGis(()=>{ if (localStorage.signed) sync(false); else renderBanner(); });
+  whenGis(()=>{ if (LS.signed) sync(false); else renderBanner(); });
   if (!navigator.onLine) setSync('off');
 })();
 </script>
