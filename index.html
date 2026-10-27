@@ -551,7 +551,7 @@ function visible(){
   if (f.mtype) l=l.filter(p=>p.matTypes.includes(f.mtype));
   if (f.comp) l=l.filter(p=>p.compositions.includes(f.comp));
   if (f.fav) l=l.filter(p=>p.favorite);
-  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.creator,p.source,p.status,p.notes,...p.matTypes,...p.compositions,...p.tags,...p.pdfs.map(x=>x.name)].join(' ')).includes(q)); }
+  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.creator,p.status,p.notes,...p.matTypes,...p.compositions,...p.tags,...p.pdfs.map(x=>x.name)].join(' ')).includes(q)); }
   if (f.sort==='name') l.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   else if (f.sort==='created') l.sort((a,b)=>b.created-a.created);
   else l.sort((a,b)=>b.updated-a.updated);
@@ -721,7 +721,7 @@ function openDetail(id){
     try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
   };
   const star=h('button',{class:'rb','aria-label':'Favori',style:p.favorite?'color:#f2b134':'',onclick:async()=>{p.favorite=!p.favorite;p.updated=Date.now();await commit();star.style.color=p.favorite?'#f2b134':'';star.replaceChildren(ic('star',p.favorite));renderList();renderHeader();}},ic('star',p.favorite));
-  const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Créateur',p.creator],['Source / marque',p.source]].filter(r=>r[1]);
+  const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Créateur',p.creator]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
     p.matTypes.length>0 && h('div',{class:'kv'},h('span',{},'Type de matière'),h('span',{},p.matTypes.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
@@ -808,7 +808,6 @@ function openForm(id){
     h('label',{class:'f'},'Composition',compBox),
     h('label',{class:'f'},'Métrage nécessaire (cm)',yardBox),
     h('label',{class:'f'},'Statut',select('status',STATUSES,p.status)),
-    h('label',{class:'f'},'Source / marque du patron',h('input',{type:'text',name:'source',value:p.source})),
     h('label',{class:'f'},'Tags (séparés par des virgules)',h('input',{type:'text',name:'tags',value:p.tags.join(', ')})),
     h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},p.notes)),
     h('label',{class:'f',style:'display:flex;gap:10px;align-items:center'},h('input',{type:'checkbox',name:'favorite',checked:p.favorite}),'Favori'));
@@ -840,7 +839,7 @@ function openForm(id){
         if (old && p.folderId && old.name!==p.name) renameFile(p.folderId,base).catch(()=>{});
         await tidyFiles(p);
       }
-      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,yardage:yard.map(y=>({label:y.label.trim(),cm:y.cm.trim().replace(',','.')})).filter(y=>y.cm),tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
+      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,yardage:yard.map(y=>({label:y.label.trim(),cm:y.cm.trim().replace(',','.')})).filter(y=>y.cm),tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
       p.updated=Date.now(); if(!p.created) p.created=p.updated;
       const i=state.data.patterns.findIndex(x=>x.id===p.id);
       if(i>=0) state.data.patterns[i]=p; else state.data.patterns.push(p);
