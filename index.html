@@ -163,7 +163,7 @@ label.f{display:block;margin:16px 0 0;font:700 14px var(--body);color:var(--acce
 // À défaut, vous pouvez le coller ici à la place du texte entre guillemets.
 const CLIENT_ID = (window.PATRONS_CONFIG && window.PATRONS_CONFIG.CLIENT_ID) || 'COLLER_ICI_VOTRE_ID_CLIENT.apps.googleusercontent.com';
 const APP_TITLE = 'Stegie Création';
-const APP_VERSION = '1.6';
+const APP_VERSION = '1.7';
 const RELEASE_DATE = '27/10/2026';
 const DATA_VERSION = 4;
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -175,9 +175,12 @@ const DEFAULT_SETTINGS = {
   persons: ['Femme','Homme','Enfant','Bébé','Unisexe'],
   seasons: ['Printemps','Été','Automne','Hiver','Toutes saisons'],
   fabrics: ['Coton','Lin','Jersey','Viscose','Laine','Satin','Polaire','Denim','Soie','Simili cuir'],
-  statuses: ['À coudre','Testé','Validé','À améliorer']
+  statuses: ['À coudre','Testé','Validé','À améliorer'],
+  matTypes: ['Jersey / Maille','Tissu'],
+  compositions: ['Coton','Lin','Polyester','Viscose','Soie','Simili cuir']
 };
-const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',fabrics:'Matières des tissus',statuses:'Statuts'};
+const STATUSES = ['Fait','Non fait'];
+const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',matTypes:'Type de matière',compositions:'Composition',fabrics:'Matières des fiches tissus'};
 const DIFFS = {'1':'Facile','2':'Moyen','3':'Difficile'};
 
 /* ============ OUTILS ============ */
@@ -239,9 +242,11 @@ async function kvSet(k,v){const db=await idb();return new Promise((res,rej)=>{co
 
 /* ============ MODÈLE DE DONNÉES (jamais de perte) ============ */
 function normRec(p){
-  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
+  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],matTypes:[],compositions:[],matV:0,creator:'',difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
     photoId:'',thumb:'',pdfId:'',pdfName:'',photos:[],pdfs:[],folderId:'',photosFolderId:'',pdfFolderId:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
   // anciennes fiches (une seule photo / un seul PDF) : on les range dans les nouvelles listes, sans rien supprimer
+  // ancien champ « tissus conseillés » : Jersey → type de matière, le reste → composition (l'ancien champ est conservé)
+  if (!r.matV){ if(!r.matTypes.length&&!r.compositions.length){ for(const x of r.fabrics){ if(/jersey|maille/i.test(x)) r.matTypes.push('Jersey / Maille'); else r.compositions.push(x); } } r.matV=1; }
   if (!r.photos.length && r.photoId) r.photos=[{id:r.photoId,thumb:r.thumb||'',parent:''}];
   if (!r.pdfs.length && r.pdfId) r.pdfs=[{id:r.pdfId,name:r.pdfName||'patron.pdf',parent:''}];
   return r;
@@ -287,7 +292,7 @@ const byId = (x,y)=>x.id<y.id?-1:1;
 const sig = d => JSON.stringify({p:d.patterns.slice().sort(byId),t:d.textiles.slice().sort(byId),s:d.settings,u:d.purged});
 
 const state = {data:migrate(null), dirty:false, view:'home',
-  f:{q:'',cat:'',person:'',season:'',status:'',fav:false,sort:'recent'}, t:{q:'',mat:''},
+  f:{q:'',cat:'',person:'',season:'',status:'',mtype:'',comp:'',fav:false,sort:'recent'}, t:{q:'',mat:''},
   sync:{st:'off',last:+LS.lastSync||0,err:''}};
 async function saveLocal(){ await kvSet('data',{data:state.data,dirty:state.dirty}); }
 
@@ -543,14 +548,16 @@ function visible(){
   if (f.person) l=l.filter(p=>p.person===f.person);
   if (f.season) l=l.filter(p=>p.season===f.season);
   if (f.status) l=l.filter(p=>p.status===f.status);
+  if (f.mtype) l=l.filter(p=>p.matTypes.includes(f.mtype));
+  if (f.comp) l=l.filter(p=>p.compositions.includes(f.comp));
   if (f.fav) l=l.filter(p=>p.favorite);
-  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.source,p.sizes,p.status,p.notes,...p.fabrics,...p.tags,...p.pdfs.map(x=>x.name)].join(' ')).includes(q)); }
+  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.creator,p.source,p.status,p.notes,...p.matTypes,...p.compositions,...p.tags,...p.pdfs.map(x=>x.name)].join(' ')).includes(q)); }
   if (f.sort==='name') l.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   else if (f.sort==='created') l.sort((a,b)=>b.created-a.created);
   else l.sort((a,b)=>b.updated-a.updated);
   return l;
 }
-const activeFilters = () => [state.f.person,state.f.season,state.f.status,state.f.fav].filter(Boolean).length;
+const activeFilters = () => [state.f.person,state.f.season,state.f.status,state.f.mtype,state.f.comp,state.f.fav].filter(Boolean).length;
 function pageHome(){
   const nP=state.data.patterns.filter(x=>!x.deleted).length, nT=state.data.textiles.filter(x=>!x.deleted).length;
   const tile=(cls,kind,title,sub,view)=>h('button',{class:'hub '+cls,onclick:()=>nav(view)},
@@ -714,10 +721,11 @@ function openDetail(id){
     try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
   };
   const star=h('button',{class:'rb','aria-label':'Favori',style:p.favorite?'color:#f2b134':'',onclick:async()=>{p.favorite=!p.favorite;p.updated=Date.now();await commit();star.style.color=p.favorite?'#f2b134':'';star.replaceChildren(ic('star',p.favorite));renderList();renderHeader();}},ic('star',p.favorite));
-  const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Source / marque',p.source],['Tailles',p.sizes]].filter(r=>r[1]);
+  const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Créateur',p.creator],['Source / marque',p.source]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
-    p.fabrics.length>0 && h('div',{class:'kv'},h('span',{},'Tissus'),h('span',{},p.fabrics.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
+    p.matTypes.length>0 && h('div',{class:'kv'},h('span',{},'Type de matière'),h('span',{},p.matTypes.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
+    p.compositions.length>0 && h('div',{class:'kv'},h('span',{},'Composition'),h('span',{},p.compositions.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.tags.length>0 && h('div',{class:'kv'},h('span',{},'Tags'),h('span',{},p.tags.map(x=>h('span',{class:'pill n',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},p.notes)));
   const strip = p.photos.length>1 ? h('div',{class:'gal'},...p.photos.map((it,i)=>{ const b=h('button',{class:'gth'+(i===0?' on':''),'aria-label':'Photo '+(i+1),onclick:()=>showPhoto(i)},h('img',{src:it.thumb||'',alt:''})); gth.push(b); return b; })) : null;
@@ -729,7 +737,7 @@ function openDetail(id){
     h('div',{class:'row'},
       h('button',{class:'btn',onclick:()=>openForm(p.id)},ic('edit'),'Modifier'),
       h('button',{class:'btn dng',onclick:async()=>{ if(!confirm('Mettre ce patron à la corbeille ?')) return; p.deleted=true;p.deletedAt=Date.now();p.updated=Date.now(); await commit(); closeSheet(); render(); toast('Patron mis à la corbeille'); }},ic('trash'),'Corbeille')),
-    (rows.length||p.fabrics.length||p.tags.length||p.notes)? info : null);
+    (rows.length||p.matTypes.length||p.compositions.length||p.tags.length||p.notes)? info : null);
   openSheet(body,{label:'Patrons',actions:[star]});
   if (p.photos.length) showPhoto(0);
 }
@@ -750,10 +758,11 @@ function openForm(id){
   const pdfItems = p.pdfs.map(x=>Object.assign({kind:'old'},x));
   const sel=(list,val)=>{ const l=[...list]; if(val&&!l.includes(val)) l.push(val); return l; };
   const select=(name,list,val)=>h('select',{name},h('option',{value:''},'—'),...sel(list,val).map(x=>h('option',{value:x,selected:x===val},x)));
-  const fabrics=new Set(p.fabrics);
-  const fabBox=h('div',{style:'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px'});
-  const drawFab=()=>fabBox.replaceChildren(...[...S.fabrics,...[...fabrics].filter(x=>!S.fabrics.includes(x))].map(x=>h('button',{type:'button',class:'chip'+(fabrics.has(x)?' on':''),onclick:()=>{fabrics.has(x)?fabrics.delete(x):fabrics.add(x);drawFab()}},x)));
-  drawFab();
+  const mTypes=new Set(p.matTypes), comps=new Set(p.compositions);
+  const chipBox=(set,list)=>{ const box=h('div',{style:'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px'});
+    const draw=()=>box.replaceChildren(...[...list,...[...set].filter(x=>!list.includes(x))].map(x=>h('button',{type:'button',class:'chip'+(set.has(x)?' on':''),onclick:()=>{set.has(x)?set.delete(x):set.add(x);draw()}},x)));
+    draw(); return box; };
+  const typeBox=chipBox(mTypes,S.matTypes), compBox=chipBox(comps,S.compositions);
   const photoBox=h('div',{class:'pgrid'});
   const drawPhotos=()=>photoBox.replaceChildren(
     ...photoItems.map((it,i)=>h('div',{class:'pthumb'},
@@ -777,16 +786,17 @@ function openForm(id){
     h('label',{class:'f'},'Photos du vêtement'), h('div',{class:'fhint'},'La première est la photo principale (affichée dans la liste). Touchez l\'étoile d\'une autre photo pour la choisir à la place.'), photoBox,
     h('label',{class:'f',style:'margin-top:20px'},'Patrons PDF (un ou plusieurs)'), pdfBox,
     h('label',{class:'f'},'Nom *',h('input',{type:'text',name:'name',value:p.name,autocomplete:'off'})),
+    h('label',{class:'f'},'Créateur',h('input',{type:'text',name:'creator',value:p.creator,autocomplete:'off'})),
     h('div',{class:'two'},
       h('label',{class:'f'},'Catégorie',select('category',S.categories,p.category)),
       h('label',{class:'f'},'Pour qui',select('person',S.persons,p.person))),
     h('div',{class:'two'},
       h('label',{class:'f'},'Saison',select('season',S.seasons,p.season)),
       h('label',{class:'f'},'Difficulté',h('select',{name:'difficulty'},h('option',{value:''},'—'),...Object.entries(DIFFS).map(([k,v])=>h('option',{value:k,selected:k===p.difficulty},v))))),
-    h('label',{class:'f'},'Tissus conseillés',fabBox),
-    h('div',{class:'two'},
-      h('label',{class:'f'},'Statut',select('status',S.statuses,p.status)),
-      h('label',{class:'f'},'Tailles',h('input',{type:'text',name:'sizes',value:p.sizes,placeholder:'ex. 34 au 46'}))),
+    h('div',{class:'lbl',style:'margin:18px 0 0'},'Matière'),
+    h('label',{class:'f'},'Type de matière',typeBox),
+    h('label',{class:'f'},'Composition',compBox),
+    h('label',{class:'f'},'Statut',select('status',STATUSES,p.status)),
     h('label',{class:'f'},'Source / marque du patron',h('input',{type:'text',name:'source',value:p.source})),
     h('label',{class:'f'},'Tags (séparés par des virgules)',h('input',{type:'text',name:'tags',value:p.tags.join(', ')})),
     h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},p.notes)),
@@ -819,7 +829,7 @@ function openForm(id){
         if (old && p.folderId && old.name!==p.name) renameFile(p.folderId,base).catch(()=>{});
         await tidyFiles(p);
       }
-      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),sizes:v('sizes'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,fabrics:[...fabrics],tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
+      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
       p.updated=Date.now(); if(!p.created) p.created=p.updated;
       const i=state.data.patterns.findIndex(x=>x.id===p.id);
       if(i>=0) state.data.patterns[i]=p; else state.data.patterns.push(p);
@@ -836,11 +846,11 @@ function openFilters(){
   const sel=(key,list,label)=>h('label',{class:'f'},label,h('select',{onchange:e=>{F[key]=e.target.value}},h('option',{value:''},'Tous'),...list.map(x=>h('option',{value:x,selected:x===F[key]},x))));
   const fav=h('input',{type:'checkbox',checked:F.fav,onchange:e=>{F.fav=e.target.checked}});
   openSheet(h('div',{},h('div',{class:'dtitle'},'Filtres'),
-    sel('person',S.persons,'Pour qui'), sel('season',S.seasons,'Saison'), sel('status',S.statuses,'Statut'),
+    sel('person',S.persons,'Pour qui'), sel('season',S.seasons,'Saison'), sel('status',[...STATUSES,...new Set(state.data.patterns.map(x=>x.status).filter(x=>x&&!STATUSES.includes(x)))],'Statut'), sel('mtype',S.matTypes,'Type de matière'), sel('comp',S.compositions,'Composition'),
     h('label',{class:'f',style:'display:flex;gap:10px;align-items:center'},fav,'Favoris uniquement'),
     h('label',{class:'f'},'Trier par',h('select',{onchange:e=>{F.sort=e.target.value}},...[['recent','Modifiés récemment'],['created','Ajoutés récemment'],['name','Nom (A → Z)']].map(([k,v])=>h('option',{value:k,selected:k===F.sort},v))))),
     {label:'Patrons',foot:[
-      h('button',{class:'btn',onclick:()=>{Object.assign(F,{person:'',season:'',status:'',fav:false,cat:''});closeSheet();renderList();}},'Tout effacer'),
+      h('button',{class:'btn',onclick:()=>{Object.assign(F,{person:'',season:'',status:'',mtype:'',comp:'',fav:false,cat:''});closeSheet();renderList();}},'Tout effacer'),
       h('button',{class:'btn pri',onclick:()=>{closeSheet();renderList();}},'Appliquer')]});
 }
 
