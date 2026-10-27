@@ -180,7 +180,7 @@ const DEFAULT_SETTINGS = {
   compositions: ['Coton','Lin','Polyester','Viscose','Soie','Simili cuir']
 };
 const STATUSES = ['Fait','Non fait'];
-const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',matTypes:'Type de matière',compositions:'Composition',fabrics:'Matières des fiches tissus'};
+const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',matTypes:'Type de matière',compositions:'Composition'};
 const DIFFS = {'1':'Facile','2':'Moyen','3':'Difficile'};
 
 /* ============ OUTILS ============ */
@@ -252,8 +252,10 @@ function normRec(p){
   return r;
 }
 function normTextile(t){
-  const r = Object.assign({id:'',name:'',material:'',color:'',width:'',length:'',unit:'',store:'',care:'',notes:'',favorite:false,photoId:'',thumb:'',photos:[],folderId:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
+  const r = Object.assign({id:'',name:'',material:'',matTypes:[],compositions:[],matV:0,color:'',width:'',length:'',unit:'',store:'',care:'',notes:'',favorite:false,photoId:'',thumb:'',photos:[],folderId:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
   if (!r.photos.length && r.photoId) r.photos=[{id:r.photoId,thumb:r.thumb||'',parent:''}];
+  // ancien champ « matière » (liste unique) : Jersey → type de matière, le reste → composition (l'ancien champ est conservé)
+  if (!r.matV){ if(r.material&&!r.matTypes.length&&!r.compositions.length){ if(/jersey|maille/i.test(r.material)) r.matTypes.push('Jersey / Maille'); else r.compositions.push(r.material); } r.matV=1; }
   // anciennes fiches : le métrage était saisi en mètres → converti une seule fois en cm (marqueur unit)
   if (r.unit!=='cm'){
     if (/^\s*\d+([.,]\d+)?\s*m?\s*$/i.test(String(r.length))) r.length = String(Math.round(parseFloat(String(r.length).replace(',','.'))*100));
@@ -751,6 +753,9 @@ async function openPdf(it, download, label){
     else if (w) w.location.href=url; else location.href=url;
   }catch(e){ if(w) w.close(); toast('PDF inaccessible : '+e.message); }
 }
+function chipBox(set,list){ const box=h('div',{style:'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px'});
+  const draw=()=>box.replaceChildren(...[...list,...[...set].filter(x=>!list.includes(x))].map(x=>h('button',{type:'button',class:'chip'+(set.has(x)?' on':''),onclick:()=>{set.has(x)?set.delete(x):set.add(x);draw()}},x)));
+  draw(); return box; }
 function openForm(id){
   const old = id && state.data.patterns.find(x=>x.id===id);
   const p = old ? clone(old) : normRec({id:uid()});
@@ -868,8 +873,8 @@ function openFilters(){
 /* ============ TISSUS ============ */
 function visibleTextiles(){
   const f=state.t; let l=state.data.textiles.filter(t=>!t.deleted);
-  if (f.mat) l=l.filter(t=>t.material===f.mat);
-  if (f.q){ const q=fold(f.q); l=l.filter(t=>fold([t.name,t.material,t.color,t.store,t.care,t.notes].join(' ')).includes(q)); }
+  if (f.mat) l=l.filter(t=>t.matTypes.includes(f.mat)||t.compositions.includes(f.mat));
+  if (f.q){ const q=fold(f.q); l=l.filter(t=>fold([t.name,...t.matTypes,...t.compositions,t.color,t.store,t.care,t.notes].join(' ')).includes(q)); }
   return l.sort((a,b)=>b.updated-a.updated);
 }
 function pageTissus(){
@@ -886,7 +891,7 @@ function renderTextiles(){
   if (!$('#tlist')) return;
   $('#tchips').replaceChildren(
     h('button',{class:'chip'+(!state.t.mat?' on':''),onclick:()=>{state.t.mat='';renderTextiles()}},'Tous'),
-    ...state.data.settings.fabrics.map(c=>h('button',{class:'chip'+(state.t.mat===c?' on':''),onclick:()=>{state.t.mat=state.t.mat===c?'':c;renderTextiles()}},c)));
+    ...[...state.data.settings.matTypes,...state.data.settings.compositions].map(c=>h('button',{class:'chip'+(state.t.mat===c?' on':''),onclick:()=>{state.t.mat=state.t.mat===c?'':c;renderTextiles()}},c)));
   const l=visibleTextiles(), total=state.data.textiles.filter(t=>!t.deleted).length;
   $('#tcnt').textContent = total ? (l.length!==total ? `${l.length} sur ${total} tissus` : 'Vos tissus') : '';
   $('#tlist').replaceChildren(...l.map(textileCard));
@@ -901,7 +906,7 @@ function textileCard(t){
     h('div',{class:'th'}, th? h('img',{src:th,alt:'',loading:'lazy'}) : icoImg('tis')),
     h('div',{style:'min-width:0'},
       h('div',{class:'nm'},t.name),
-      h('div',{class:'mt'},[t.material,t.color].filter(Boolean).join(' · ')||' '),
+      h('div',{class:'mt'},[...t.matTypes,...t.compositions,t.color].filter(Boolean).join(' · ')||' '),
       h('div',{class:'pl'},
         t.length && h('span',{class:'pill g'},t.length+' cm'),
         t.width && h('span',{class:'pill'},'laize '+t.width+' cm'),
@@ -918,7 +923,7 @@ function openTextileDetail(id){
     try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
   };
   const star=h('button',{class:'rb','aria-label':'Favori',style:t.favorite?'color:#f2b134':'',onclick:async()=>{t.favorite=!t.favorite;t.updated=Date.now();await commit();star.style.color=t.favorite?'#f2b134':'';star.replaceChildren(ic('star',t.favorite));renderTextiles();}},ic('star',t.favorite));
-  const rows=[['Matière',t.material],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' cm'],['Acheté chez',t.store],['Entretien',t.care]].filter(r=>r[1]);
+  const rows=[['Type de matière',t.matTypes.join(', ')],['Composition',t.compositions.join(', ')],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' cm'],['Acheté chez',t.store],['Entretien',t.care]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
     t.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},t.notes)));
@@ -937,7 +942,8 @@ function openTextileForm(id){
   const t = old ? clone(old) : normTextile({id:uid()});
   const S = state.data.settings;
   const photoItems = t.photos.map(x=>Object.assign({kind:'old'},x));
-  const mats=[...S.fabrics]; if(t.material&&!mats.includes(t.material)) mats.push(t.material);
+  const mTypes=new Set(t.matTypes), comps=new Set(t.compositions);
+  const typeBox=chipBox(mTypes,S.matTypes), compBox=chipBox(comps,S.compositions);
   const photoBox=h('div',{class:'pgrid'});
   const drawPhotos=()=>photoBox.replaceChildren(
     ...photoItems.map((it,i)=>h('div',{class:'pthumb'},
@@ -953,9 +959,10 @@ function openTextileForm(id){
   const f=h('form',{onsubmit:e=>e.preventDefault()},
     h('label',{class:'f'},'Photos du tissu'), h('div',{class:'fhint'},'La première est la photo principale. Touchez l\'étoile d\'une autre photo pour la choisir à la place.'), photoBox,
     h('label',{class:'f',style:'margin-top:20px'},'Nom *',h('input',{type:'text',name:'name',value:t.name,autocomplete:'off'})),
-    h('div',{class:'two'},
-      h('label',{class:'f'},'Matière',h('select',{name:'material'},h('option',{value:''},'—'),...mats.map(x=>h('option',{value:x,selected:x===t.material},x)))),
-      txt('color','Couleur','ex. vert sauge')),
+    h('div',{class:'lbl',style:'margin:18px 0 0'},'Matière'),
+    h('label',{class:'f'},'Type de matière',typeBox),
+    h('label',{class:'f'},'Composition',compBox),
+    txt('color','Couleur','ex. vert sauge'),
     h('div',{class:'two'},
       txt('width','Laize (cm)','ex. 140','decimal'),
       txt('length','Métrage en stock (cm)','ex. 250','decimal')),
@@ -985,7 +992,7 @@ function openTextileForm(id){
         await tidyTextile(t);
       }
       const num=x=>x.replace(',','.');
-      Object.assign(t,{material:v('material'),color:v('color'),width:num(v('width')),length:num(v('length')),unit:'cm',store:v('store'),care:v('care'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
+      Object.assign(t,{matTypes:[...mTypes],compositions:[...comps],matV:1,color:v('color'),width:num(v('width')),length:num(v('length')),unit:'cm',store:v('store'),care:v('care'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
       t.updated=Date.now(); if(!t.created) t.created=t.updated;
       const i=state.data.textiles.findIndex(x=>x.id===t.id);
       if(i>=0) state.data.textiles[i]=t; else state.data.textiles.push(t);
