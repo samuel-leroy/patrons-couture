@@ -252,7 +252,7 @@ function normRec(p){
   return r;
 }
 function normTextile(t){
-  const r = Object.assign({id:'',name:'',material:'',matTypes:[],compositions:[],matV:0,color:'',width:'',length:'',unit:'',store:'',care:'',notes:'',favorite:false,photoId:'',thumb:'',photos:[],folderId:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
+  const r = Object.assign({id:'',name:'',material:'',matTypes:[],compositions:[],matV:0,color:'',width:'',length:'',unit:'',store:'',care:'',location:'',scrap:false,prewashed:false,notes:'',favorite:false,photoId:'',thumb:'',photos:[],folderId:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
   if (!r.photos.length && r.photoId) r.photos=[{id:r.photoId,thumb:r.thumb||'',parent:''}];
   // ancien champ « matière » (liste unique) : Jersey → type de matière, le reste → composition (l'ancien champ est conservé)
   if (!r.matV){ if(r.material&&!r.matTypes.length&&!r.compositions.length){ if(/jersey|maille/i.test(r.material)) r.matTypes.push('Jersey / Maille'); else r.compositions.push(r.material); } r.matV=1; }
@@ -874,7 +874,7 @@ function openFilters(){
 function visibleTextiles(){
   const f=state.t; let l=state.data.textiles.filter(t=>!t.deleted);
   if (f.mat) l=l.filter(t=>t.matTypes.includes(f.mat)||t.compositions.includes(f.mat));
-  if (f.q){ const q=fold(f.q); l=l.filter(t=>fold([t.name,...t.matTypes,...t.compositions,t.color,t.store,t.care,t.notes].join(' ')).includes(q)); }
+  if (f.q){ const q=fold(f.q); l=l.filter(t=>fold([t.name,...t.matTypes,...t.compositions,t.color,t.store,t.location,t.scrap?'chute':'',t.prewashed?'prelave':'',t.notes].join(' ')).includes(q)); }
   return l.sort((a,b)=>b.updated-a.updated);
 }
 function pageTissus(){
@@ -910,6 +910,8 @@ function textileCard(t){
       h('div',{class:'pl'},
         t.length && h('span',{class:'pill g'},t.length+' cm'),
         t.width && h('span',{class:'pill'},'laize '+t.width+' cm'),
+        t.scrap && h('span',{class:'pill n'},'Chute'),
+        t.prewashed && h('span',{class:'pill g'},'Prélavé'),
         t.photos.length>1 && h('span',{class:'pill n'},t.photos.length+' photos'),
         t.favorite && h('span',{class:'pill y'},'★ Favori'))),
     h('span',{class:'chev'},ic('chev')));
@@ -923,7 +925,7 @@ function openTextileDetail(id){
     try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
   };
   const star=h('button',{class:'rb','aria-label':'Favori',style:t.favorite?'color:#f2b134':'',onclick:async()=>{t.favorite=!t.favorite;t.updated=Date.now();await commit();star.style.color=t.favorite?'#f2b134':'';star.replaceChildren(ic('star',t.favorite));renderTextiles();}},ic('star',t.favorite));
-  const rows=[['Type de matière',t.matTypes.join(', ')],['Composition',t.compositions.join(', ')],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' cm'],['Acheté chez',t.store],['Entretien',t.care]].filter(r=>r[1]);
+  const rows=[['Type de matière',t.matTypes.join(', ')],['Composition',t.compositions.join(', ')],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' cm'],['Acheté chez',t.store],['Emplacement',t.location],['État',[t.scrap&&'Chute',t.prewashed&&'Prélavé'].filter(Boolean).join(' · ')]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
     t.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},t.notes)));
@@ -966,8 +968,11 @@ function openTextileForm(id){
     h('div',{class:'two'},
       txt('width','Laize (cm)','ex. 140','decimal'),
       txt('length','Métrage en stock (cm)','ex. 250','decimal')),
+    h('div',{style:'display:flex;gap:28px;margin-top:16px'},
+      h('label',{style:'display:flex;gap:10px;align-items:center;font-weight:700'},h('input',{type:'checkbox',name:'scrap',checked:t.scrap}),'Chute'),
+      h('label',{style:'display:flex;gap:10px;align-items:center;font-weight:700'},h('input',{type:'checkbox',name:'prewashed',checked:t.prewashed}),'Prélavé')),
     txt('store','Acheté chez'),
-    txt('care','Entretien','ex. lavage 30 °'),
+    txt('location','Emplacement','ex. étagère 2, bac bleu'),
     h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},t.notes)),
     h('label',{class:'f',style:'display:flex;gap:10px;align-items:center'},h('input',{type:'checkbox',name:'favorite',checked:t.favorite}),'Favori'));
   const save=h('button',{class:'btn pri',onclick:async()=>{
@@ -992,7 +997,7 @@ function openTextileForm(id){
         await tidyTextile(t);
       }
       const num=x=>x.replace(',','.');
-      Object.assign(t,{matTypes:[...mTypes],compositions:[...comps],matV:1,color:v('color'),width:num(v('width')),length:num(v('length')),unit:'cm',store:v('store'),care:v('care'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
+      Object.assign(t,{matTypes:[...mTypes],compositions:[...comps],matV:1,color:v('color'),width:num(v('width')),length:num(v('length')),unit:'cm',store:v('store'),location:v('location'),scrap:f.querySelector('[name=scrap]').checked,prewashed:f.querySelector('[name=prewashed]').checked,notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
       t.updated=Date.now(); if(!t.created) t.created=t.updated;
       const i=state.data.textiles.findIndex(x=>x.id===t.id);
       if(i>=0) state.data.textiles[i]=t; else state.data.textiles.push(t);
