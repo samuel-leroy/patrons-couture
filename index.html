@@ -122,6 +122,24 @@ label.f{display:block;margin:16px 0 0;font:700 14px var(--body);color:var(--acce
 .hub .hs{color:var(--cmut);font-weight:600;margin-top:6px}
 .hub .chev{font-size:28px}
 .th .ico{font-size:46px;opacity:.75}
+
+.pgrid{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.pthumb{position:relative;width:92px;height:92px;border-radius:22px;overflow:hidden;background:var(--soft);border:1px solid var(--line)}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pbadge{position:absolute;left:6px;bottom:6px;font:700 11px var(--body);background:rgba(40,20,30,.62);color:#fff;border-radius:999px;padding:2px 9px}
+.pmk,.px{position:absolute;top:5px;width:28px;height:28px;border-radius:50%;border:0;display:grid;place-items:center;background:rgba(255,255,255,.9);color:var(--accent-deep);font-size:15px;padding:0;line-height:1}
+.pmk{left:5px}.px{right:5px;font-size:20px}
+.padd{width:92px;height:92px;border-radius:22px;border:2px dashed var(--accent);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--accent-deep);font-weight:700;font-size:13px;cursor:pointer;background:var(--card)}
+.padd .ic{font-size:26px}
+.pdfrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:10px 12px 10px 14px;margin-bottom:8px;color:var(--accent-deep);font-size:22px}
+.pdfrow .pn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-weight:600;font-size:15px}
+.pdfrow .btn{padding:8px 14px;font-size:14px;box-shadow:none}
+.px2{border:0;background:none;color:var(--muted);font-size:24px;padding:0 4px;line-height:1}
+.gal{display:flex;gap:8px;overflow-x:auto;margin:10px 0 0;padding:2px 2px 6px}
+.gth{flex:none;width:64px;height:64px;border-radius:16px;overflow:hidden;padding:0;border:2px solid transparent;background:var(--soft)}
+.gth.on{border-color:var(--accent)}
+.gth img{width:100%;height:100%;object-fit:cover;display:block}
+.fhint{color:var(--muted);font-size:13px;font-weight:500;margin:4px 0 0}
 </style>
 </head>
 <body>
@@ -145,9 +163,9 @@ label.f{display:block;margin:16px 0 0;font:700 14px var(--body);color:var(--acce
 // À défaut, vous pouvez le coller ici à la place du texte entre guillemets.
 const CLIENT_ID = (window.PATRONS_CONFIG && window.PATRONS_CONFIG.CLIENT_ID) || 'COLLER_ICI_VOTRE_ID_CLIENT.apps.googleusercontent.com';
 const APP_TITLE = 'Stegie Création';
-const APP_VERSION = '1.4';
-const RELEASE_DATE = '26/10/2026';
-const DATA_VERSION = 2;
+const APP_VERSION = '1.6';
+const RELEASE_DATE = '27/10/2026';
+const DATA_VERSION = 4;
 const SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const ROOT_NAME = 'Patrons couture';
 const DATA_NAME = 'patrons.json';
@@ -221,10 +239,22 @@ async function kvSet(k,v){const db=await idb();return new Promise((res,rej)=>{co
 
 /* ============ MODÈLE DE DONNÉES (jamais de perte) ============ */
 function normRec(p){
-  return Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,photoId:'',thumb:'',pdfId:'',pdfName:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
+  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
+    photoId:'',thumb:'',pdfId:'',pdfName:'',photos:[],pdfs:[],folderId:'',photosFolderId:'',pdfFolderId:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
+  // anciennes fiches (une seule photo / un seul PDF) : on les range dans les nouvelles listes, sans rien supprimer
+  if (!r.photos.length && r.photoId) r.photos=[{id:r.photoId,thumb:r.thumb||'',parent:''}];
+  if (!r.pdfs.length && r.pdfId) r.pdfs=[{id:r.pdfId,name:r.pdfName||'patron.pdf',parent:''}];
+  return r;
 }
 function normTextile(t){
-  return Object.assign({id:'',name:'',material:'',color:'',width:'',length:'',store:'',care:'',notes:'',favorite:false,photoId:'',thumb:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
+  const r = Object.assign({id:'',name:'',material:'',color:'',width:'',length:'',unit:'',store:'',care:'',notes:'',favorite:false,photoId:'',thumb:'',photos:[],folderId:'',created:0,updated:0,deleted:false,deletedAt:0}, t);
+  if (!r.photos.length && r.photoId) r.photos=[{id:r.photoId,thumb:r.thumb||'',parent:''}];
+  // anciennes fiches : le métrage était saisi en mètres → converti une seule fois en cm (marqueur unit)
+  if (r.unit!=='cm'){
+    if (/^\s*\d+([.,]\d+)?\s*m?\s*$/i.test(String(r.length))) r.length = String(Math.round(parseFloat(String(r.length).replace(',','.'))*100));
+    r.unit='cm';
+  }
+  return r;
 }
 // Les champs inconnus sont conservés ; les nouveaux champs reçoivent une valeur par défaut.
 function migrate(d){
@@ -288,8 +318,7 @@ async function rememberAccount(t){
   }catch(e){}
 }
 function switchAccount(){
-  delete LS.hint; delete LS.signed; delete LS.rootId; delete LS.filesId; delete LS.backupsId; delete LS.dataId;
-  ids.root=ids.files=ids.backups=ids.data=''; tok=null; tokExp=0;
+  delete LS.hint; delete LS.signed; delete LS.filesId; ids.files=''; resetDriveIds(); tok=null; tokExp=0;
   sync(true).then(render);
 }
 async function api(url, opts={}, retry=true){
@@ -300,7 +329,7 @@ async function api(url, opts={}, retry=true){
   return r;
 }
 const DRIVE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
-const ids = {root:LS.rootId||'', files:LS.filesId||'', backups:LS.backupsId||'', data:LS.dataId||''};
+const ids = {root:LS.rootId||'', files:LS.filesId||'', backups:LS.backupsId||'', data:LS.dataId||'', garments:LS.garmentsId||'', textiles:LS.textilesId||''};
 async function listFiles(q, extra=''){
   const r = await api(DRIVE+'?fields=files(id,name,createdTime)&pageSize=100&q='+encodeURIComponent(q)+extra);
   return (await r.json()).files;
@@ -315,8 +344,66 @@ async function ensureFolder(name, parent){
 }
 async function ensureFolders(){
   if (!ids.root){ ids.root = await ensureFolder(ROOT_NAME); LS.rootId=ids.root; }
-  if (!ids.files){ ids.files = await ensureFolder('Fichiers', ids.root); LS.filesId=ids.files; }
   if (!ids.backups){ ids.backups = await ensureFolder('Sauvegardes', ids.root); LS.backupsId=ids.backups; }
+  if (!ids.garments){ ids.garments = await ensureFolder('Vêtements', ids.root); LS.garmentsId=ids.garments; }
+  if (!ids.textiles){ ids.textiles = await ensureFolder('Tissus', ids.root); LS.textilesId=ids.textiles; }
+}
+function resetDriveIds(){
+  for (const k of ['root','backups','data','garments','textiles']) ids[k]='';
+  for (const k of ['rootId','backupsId','dataId','garmentsId','textilesId']) delete LS[k];
+}
+const cleanName = n => (n||'').replace(/[\\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,80) || 'Vêtement';
+async function createFolder(name, parent){
+  const r = await api(DRIVE+'?fields=id',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,mimeType:'application/vnd.google-apps.folder',parents:[parent]})});
+  return (await r.json()).id;
+}
+async function renameFile(id, name){ await api(DRIVE+'/'+id+'?fields=id',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})}); }
+async function moveFile(id, to, from){
+  if (!from){ try{ from = (await (await api(DRIVE+'/'+id+'?fields=parents')).json()).parents||[]; from=from.filter(x=>x!==to).join(','); }catch(e){ from=''; } }
+  await api(DRIVE+'/'+id+'?fields=id&addParents='+to+(from?'&removeParents='+from:''),{method:'PATCH',headers:{'Content-Type':'application/json'},body:'{}'}); }
+// Un dossier par vêtement : Patrons couture › Vêtements › <nom> › Photos / Patrons
+async function garmentFolder(p, which){
+  await ensureFolders();
+  if (!p.folderId){ p.folderId = await createFolder(cleanName(p.name), ids.garments); p.photosFolderId=p.pdfFolderId=''; }
+  const key = which==='photos' ? 'photosFolderId' : 'pdfFolderId';
+  if (!p[key]) p[key] = await createFolder(which==='photos'?'Photos':'Patrons', p.folderId);
+  return p[key];
+}
+async function garmentUpload(p, which, blob, name, mime){
+  for (let attempt=0; attempt<2; attempt++){
+    try{ return await multipart({name,parents:[await garmentFolder(p,which)]}, blob, mime); }
+    catch(e){
+      if (attempt===0 && / 404 /.test(e.message)){ p.folderId=p.photosFolderId=p.pdfFolderId=''; resetDriveIds(); continue; }  // dossier supprimé à la main : on le recrée
+      throw e;
+    }
+  }
+}
+// Un dossier par tissu : Patrons couture › Tissus › <nom>
+async function textileUpload(t, blob, name, mime){
+  for (let attempt=0; attempt<2; attempt++){
+    try{
+      await ensureFolders();
+      if (!t.folderId) t.folderId = await createFolder(cleanName(t.name)||'Tissu', ids.textiles);
+      return await multipart({name,parents:[t.folderId]}, blob, mime);
+    }catch(e){ if (attempt===0 && / 404 /.test(e.message)){ t.folderId=''; resetDriveIds(); continue; } throw e; }
+  }
+}
+async function tidyTextile(t){
+  try{ for (const x of t.photos) if (!x.parent){ await ensureFolders(); if(!t.folderId) t.folderId=await createFolder(cleanName(t.name)||'Tissu',ids.textiles); await moveFile(x.id,t.folderId,ids.textiles); x.parent=t.folderId; } }
+  catch(e){ console.warn('rangement reporté',e); }
+}
+// range dans le dossier du vêtement les fichiers des anciennes fiches (dossier « Fichiers »)
+async function tidyFiles(p){
+  try{
+    for (const [list,which] of [[p.photos,'photos'],[p.pdfs,'pdfs']])
+      for (const x of list) if (!x.parent){ const to=await garmentFolder(p,which); await moveFile(x.id,to,ids.files); x.parent=to; }
+  }catch(e){ console.warn('rangement reporté',e); }
+}
+function purgeFiles(p){
+  const all=new Set([...(p.photos||[]),...(p.pdfs||[])].map(x=>x.id)); if(p.photoId) all.add(p.photoId); if(p.pdfId) all.add(p.pdfId);
+  if (p.folderId) trashFile(p.folderId);
+  for (const id of all) trashFile(id);
 }
 async function multipart(meta, blob, mime){
   const b = 'pat'+Math.random().toString(36).slice(2);
@@ -324,7 +411,6 @@ async function multipart(meta, blob, mime){
   const r = await api(UP+'?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body});
   return (await r.json()).id;
 }
-async function uploadFile(blob, name, mime){ await ensureFolders(); return multipart({name,parents:[ids.files]}, blob, mime); }
 async function trashFile(id){ if(!id) return; try{ await api(DRIVE+'/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({trashed:true})}); }catch(e){} }
 const blobCache = new Map();
 async function fileBlob(id, mime){
@@ -458,7 +544,7 @@ function visible(){
   if (f.season) l=l.filter(p=>p.season===f.season);
   if (f.status) l=l.filter(p=>p.status===f.status);
   if (f.fav) l=l.filter(p=>p.favorite);
-  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.source,p.sizes,p.status,p.notes,...p.fabrics,...p.tags].join(' ')).includes(q)); }
+  if (f.q){ const q=fold(f.q); l=l.filter(p=>fold([p.name,p.category,p.person,p.season,p.source,p.sizes,p.status,p.notes,...p.fabrics,...p.tags,...p.pdfs.map(x=>x.name)].join(' ')).includes(q)); }
   if (f.sort==='name') l.sort((a,b)=>a.name.localeCompare(b.name,'fr'));
   else if (f.sort==='created') l.sort((a,b)=>b.created-a.created);
   else l.sort((a,b)=>b.updated-a.updated);
@@ -504,16 +590,18 @@ function renderList(){
   else em.classList.add('hidden');
 }
 function statusClass(s){ const f=fold(s); return /valid/.test(f)?'g':/amelior/.test(f)?'r':/coudre/.test(f)?'n':''; }
+const mainThumb = p => (p.photos&&p.photos[0]&&p.photos[0].thumb) || p.thumb || '';
 function card(p){
   return h('button',{class:'card',onclick:()=>openDetail(p.id)},
-    h('div',{class:'th'}, p.thumb? h('img',{src:p.thumb,alt:'',loading:'lazy'}) : icoImg('pat')),
+    h('div',{class:'th'}, mainThumb(p)? h('img',{src:mainThumb(p),alt:'',loading:'lazy'}) : icoImg('pat')),
     h('div',{style:'min-width:0'},
       h('div',{class:'nm'},p.name),
       h('div',{class:'mt'},[p.category,p.person].filter(Boolean).join(' · ')||' '),
       h('div',{class:'pl'},
         p.status && h('span',{class:'pill '+statusClass(p.status)},p.status),
         p.favorite && h('span',{class:'pill y'},'★ Favori'),
-        p.pdfId && h('span',{class:'pill n'},'PDF'))),
+        p.pdfs.length>0 && h('span',{class:'pill n'},p.pdfs.length>1? p.pdfs.length+' PDF':'PDF'),
+        p.photos.length>1 && h('span',{class:'pill n'},p.photos.length+' photos'))),
     h('span',{class:'chev'},ic('chev')));
 }
 function renderBanner(){
@@ -599,7 +687,7 @@ function pageTrash(){
       h('button',{class:'btn dng',onclick:async()=>{
         if(!confirm('Supprimer définitivement « '+p.name+' » et ses fichiers ?')) return;
         state.data.purged[p.id]=Date.now(); state.data[k]=state.data[k].filter(y=>y.id!==p.id);
-        trashFile(p.photoId); trashFile(p.pdfId); await commit(); render();}},'Supprimer'))));
+        purgeFiles(p); await commit(); render();}},'Supprimer'))));
 }
 function exportJson(){
   const a=h('a',{href:URL.createObjectURL(new Blob([JSON.stringify(state.data,null,1)],{type:'application/json'})),download:'patrons-'+new Date().toISOString().slice(0,10)+'.json'});
@@ -619,7 +707,12 @@ async function commit(){ state.dirty=true; await saveLocal(); scheduleSync(); }
 /* ============ FICHE, FORMULAIRE, FILTRES ============ */
 function openDetail(id){
   const p=state.data.patterns.find(x=>x.id===id); if(!p) return;
-  const img=h('img',{class:'big',alt:p.name,src:p.thumb||''});
+  const img=h('img',{class:'big',alt:p.name,src:mainThumb(p)});
+  let cur=0; const gth=[];
+  const showPhoto=async i=>{
+    cur=i; const it=p.photos[i]; img.src=it.thumb||''; gth.forEach((b,k)=>b.classList.toggle('on',k===i));
+    try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
+  };
   const star=h('button',{class:'rb','aria-label':'Favori',style:p.favorite?'color:#f2b134':'',onclick:async()=>{p.favorite=!p.favorite;p.updated=Date.now();await commit();star.style.color=p.favorite?'#f2b134':'';star.replaceChildren(ic('star',p.favorite));renderList();renderHeader();}},ic('star',p.favorite));
   const rows=[['Catégorie',p.category],['Pour qui',p.person],['Saison',p.season],['Difficulté',DIFFS[p.difficulty]],['Statut',p.status],['Source / marque',p.source],['Tailles',p.sizes]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
@@ -627,23 +720,25 @@ function openDetail(id){
     p.fabrics.length>0 && h('div',{class:'kv'},h('span',{},'Tissus'),h('span',{},p.fabrics.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.tags.length>0 && h('div',{class:'kv'},h('span',{},'Tags'),h('span',{},p.tags.map(x=>h('span',{class:'pill n',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},p.notes)));
-  const body=h('div',{}, (p.thumb||p.photoId)? img : null,
-    h('div',{class:'dtitle'},p.name),
+  const strip = p.photos.length>1 ? h('div',{class:'gal'},...p.photos.map((it,i)=>{ const b=h('button',{class:'gth'+(i===0?' on':''),'aria-label':'Photo '+(i+1),onclick:()=>showPhoto(i)},h('img',{src:it.thumb||'',alt:''})); gth.push(b); return b; })) : null;
+  const pdfs = p.pdfs.length ? h('div',{style:'margin-top:14px'},...p.pdfs.map(it=>h('div',{class:'pdfrow'},ic('file'),h('span',{class:'pn'},it.name),
+      h('button',{class:'btn pri',onclick:()=>openPdf(it,false,p.name)},'Ouvrir'),
+      h('button',{class:'btn','aria-label':'Télécharger',onclick:()=>openPdf(it,true,p.name)},ic('download'))))) : null;
+  const body=h('div',{}, (p.photos.length||mainThumb(p))? img : null, strip,
+    h('div',{class:'dtitle'},p.name), pdfs,
     h('div',{class:'row'},
-      p.pdfId && h('button',{class:'btn pri',onclick:()=>openPdf(p,false)},ic('file'),'Ouvrir le PDF'),
-      p.pdfId && h('button',{class:'btn',onclick:()=>openPdf(p,true)},ic('download'),'Télécharger'),
       h('button',{class:'btn',onclick:()=>openForm(p.id)},ic('edit'),'Modifier'),
       h('button',{class:'btn dng',onclick:async()=>{ if(!confirm('Mettre ce patron à la corbeille ?')) return; p.deleted=true;p.deletedAt=Date.now();p.updated=Date.now(); await commit(); closeSheet(); render(); toast('Patron mis à la corbeille'); }},ic('trash'),'Corbeille')),
     (rows.length||p.fabrics.length||p.tags.length||p.notes)? info : null);
   openSheet(body,{label:'Patrons',actions:[star]});
-  if (p.photoId) fileBlob(p.photoId,'image/jpeg').then(b=>{img.src=URL.createObjectURL(b)}).catch(()=>{});
+  if (p.photos.length) showPhoto(0);
 }
-async function openPdf(p, download){
+async function openPdf(it, download, label){
   const w = download? null : window.open('','_blank');
   try{
     toast('Chargement du PDF…');
-    const b = await fileBlob(p.pdfId,'application/pdf'), url=URL.createObjectURL(b);
-    if (download){ const a=h('a',{href:url,download:p.pdfName||p.name+'.pdf'}); document.body.append(a); a.click(); a.remove(); }
+    const b = await fileBlob(it.id,'application/pdf'), url=URL.createObjectURL(b);
+    if (download){ const a=h('a',{href:url,download:it.name||(label||'patron')+'.pdf'}); document.body.append(a); a.click(); a.remove(); }
     else if (w) w.location.href=url; else location.href=url;
   }catch(e){ if(w) w.close(); toast('PDF inaccessible : '+e.message); }
 }
@@ -651,21 +746,36 @@ function openForm(id){
   const old = id && state.data.patterns.find(x=>x.id===id);
   const p = old ? clone(old) : normRec({id:uid()});
   const S = state.data.settings;
-  let newPhoto=null, newPdf=null;
+  const photoItems = p.photos.map(x=>Object.assign({kind:'old'},x));
+  const pdfItems = p.pdfs.map(x=>Object.assign({kind:'old'},x));
   const sel=(list,val)=>{ const l=[...list]; if(val&&!l.includes(val)) l.push(val); return l; };
   const select=(name,list,val)=>h('select',{name},h('option',{value:''},'—'),...sel(list,val).map(x=>h('option',{value:x,selected:x===val},x)));
   const fabrics=new Set(p.fabrics);
   const fabBox=h('div',{style:'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px'});
   const drawFab=()=>fabBox.replaceChildren(...[...S.fabrics,...[...fabrics].filter(x=>!S.fabrics.includes(x))].map(x=>h('button',{type:'button',class:'chip'+(fabrics.has(x)?' on':''),onclick:()=>{fabrics.has(x)?fabrics.delete(x):fabrics.add(x);drawFab()}},x)));
   drawFab();
-  const prev=h('img',{class:'big',style:p.thumb?'margin-bottom:6px':'display:none',src:p.thumb||''});
-  const photoIn=h('input',{type:'file',accept:'image/*',onchange:e=>{newPhoto=e.target.files[0]||null;if(newPhoto){prev.src=URL.createObjectURL(newPhoto);prev.style.display='block'}}});
-  const pdfInfo=h('div',{class:'muted sm',style:'margin-top:4px'},p.pdfName?('PDF actuel : '+p.pdfName):'Aucun PDF');
-  const pdfIn=h('input',{type:'file',accept:'application/pdf,.pdf',onchange:e=>{newPdf=e.target.files[0]||null;if(newPdf)pdfInfo.textContent='Nouveau PDF : '+newPdf.name}});
+  const photoBox=h('div',{class:'pgrid'});
+  const drawPhotos=()=>photoBox.replaceChildren(
+    ...photoItems.map((it,i)=>h('div',{class:'pthumb'},
+      h('img',{src:it.kind==='new'?it.url:(it.thumb||''),alt:''}),
+      i===0 ? h('span',{class:'pbadge'},'Principale')
+            : h('button',{type:'button',class:'pmk','aria-label':'Définir comme photo principale',onclick:()=>{photoItems.unshift(photoItems.splice(i,1)[0]);drawPhotos();}},ic('star',true)),
+      h('button',{type:'button',class:'px','aria-label':'Retirer la photo',onclick:()=>{photoItems.splice(i,1);drawPhotos();}},'×'))),
+    h('label',{class:'padd'},ic('plus'),h('span',{},'Photos'),h('input',{type:'file',accept:'image/*',multiple:true,style:'display:none',onchange:e=>{
+      for (const f of e.target.files) photoItems.push({kind:'new',file:f,url:URL.createObjectURL(f),name:f.name});
+      e.target.value=''; drawPhotos(); }})));
+  drawPhotos();
+  const pdfBox=h('div',{style:'margin-top:8px'});
+  const drawPdfs=()=>pdfBox.replaceChildren(
+    ...pdfItems.map((it,i)=>h('div',{class:'pdfrow'},ic('file'),h('span',{class:'pn'},it.name),
+      h('button',{type:'button',class:'px2','aria-label':'Retirer ce PDF',onclick:()=>{pdfItems.splice(i,1);drawPdfs();}},'×'))),
+    h('label',{class:'btn',style:'display:inline-block'},ic('plus'),'Ajouter des PDF',h('input',{type:'file',accept:'application/pdf,.pdf',multiple:true,style:'display:none',onchange:e=>{
+      for (const f of e.target.files) pdfItems.push({kind:'new',file:f,name:f.name});
+      e.target.value=''; drawPdfs(); }})));
+  drawPdfs();
   const f=h('form',{onsubmit:e=>e.preventDefault()},
-    prev,
-    h('label',{class:'f'},'Photo du vêtement',photoIn),
-    h('label',{class:'f'},'PDF du patron',pdfIn), pdfInfo,
+    h('label',{class:'f'},'Photos du vêtement'), h('div',{class:'fhint'},'La première est la photo principale (affichée dans la liste). Touchez l\'étoile d\'une autre photo pour la choisir à la place.'), photoBox,
+    h('label',{class:'f',style:'margin-top:20px'},'Patrons PDF (un ou plusieurs)'), pdfBox,
     h('label',{class:'f'},'Nom *',h('input',{type:'text',name:'name',value:p.name,autocomplete:'off'})),
     h('div',{class:'two'},
       h('label',{class:'f'},'Catégorie',select('category',S.categories,p.category)),
@@ -682,32 +792,44 @@ function openForm(id){
     h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},p.notes)),
     h('label',{class:'f',style:'display:flex;gap:10px;align-items:center'},h('input',{type:'checkbox',name:'favorite',checked:p.favorite}),'Favori'));
   const save=h('button',{class:'btn pri',onclick:async()=>{
-    const v=n=>f.elements[n].value.trim();
+    const v=n=>f.querySelector('[name="'+n+'"]').value.trim();
     if(!v('name')){ toast('Le nom est obligatoire'); return; }
-    save.disabled=true; save.textContent='Enregistrement…';
+    save.disabled=true;
+    const total=photoItems.filter(x=>x.kind==='new').length+pdfItems.filter(x=>x.kind==='new').length; let done=0;
+    const tick=()=>{ save.textContent= total? `Envoi des fichiers… ${done}/${total}` : 'Enregistrement…'; }; tick();
     try{
-      if (newPhoto){
-        const full=await resize(newPhoto,1600,.85), th=await resize(newPhoto,360,.72);
-        const pid=await uploadFile(full.blob,v('name').replace(/[^\w\- ]+/g,'')+'-photo.jpg','image/jpeg');
-        if(p.photoId) trashFile(p.photoId);
-        p.photoId=pid; p.thumb=th.canvas.toDataURL('image/jpeg',.72);
+      p.name=v('name'); const base=cleanName(p.name);
+      for (const it of photoItems) if (it.kind==='new'){
+        const full=await resize(it.file,1600,.85), th=await resize(it.file,240,.66);
+        const n=photoItems.indexOf(it)+1;
+        const fid=await garmentUpload(p,'photos',full.blob,`${base} - photo ${n}.jpg`,'image/jpeg');
+        Object.assign(it,{kind:'old',id:fid,thumb:th.canvas.toDataURL('image/jpeg',.66),parent:p.photosFolderId}); done++; tick();
       }
-      if (newPdf){
-        const pid=await uploadFile(newPdf,newPdf.name,'application/pdf');
-        if(p.pdfId) trashFile(p.pdfId);
-        p.pdfId=pid; p.pdfName=newPdf.name;
+      for (const it of pdfItems) if (it.kind==='new'){
+        const fid=await garmentUpload(p,'pdfs',it.file,it.name,'application/pdf');
+        Object.assign(it,{kind:'old',id:fid,parent:p.pdfFolderId}); done++; tick();
       }
-      Object.assign(p,{name:v('name'),category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),sizes:v('sizes'),source:v('source'),notes:f.elements.notes.value.trim(),favorite:f.elements.favorite.checked,fabrics:[...fabrics],tags:v('tags').split(',').map(s=>s.trim()).filter(Boolean)});
+      p.photos=photoItems.map(x=>({id:x.id,thumb:x.thumb||'',parent:x.parent||''}));
+      p.pdfs=pdfItems.map(x=>({id:x.id,name:x.name,parent:x.parent||''}));
+      // champs « historiques » gardés à jour (première photo / premier PDF) pour rester compatible
+      Object.assign(p,{photoId:p.photos[0]?p.photos[0].id:'',thumb:p.photos[0]?p.photos[0].thumb:'',pdfId:p.pdfs[0]?p.pdfs[0].id:'',pdfName:p.pdfs[0]?p.pdfs[0].name:''});
+      // fichiers retirés → corbeille Drive (récupérables 30 jours)
+      if (old){ const keep=new Set([...p.photos,...p.pdfs].map(x=>x.id)); for (const it of [...old.photos,...old.pdfs]) if(!keep.has(it.id)) trashFile(it.id); }
+      if (navigator.onLine && LS.signed){
+        if (old && p.folderId && old.name!==p.name) renameFile(p.folderId,base).catch(()=>{});
+        await tidyFiles(p);
+      }
+      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),sizes:v('sizes'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,fabrics:[...fabrics],tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
       p.updated=Date.now(); if(!p.created) p.created=p.updated;
       const i=state.data.patterns.findIndex(x=>x.id===p.id);
       if(i>=0) state.data.patterns[i]=p; else state.data.patterns.push(p);
       await commit(); closeSheet(); render(); toast('Patron enregistré');
     }catch(e){
       save.disabled=false; save.textContent='Enregistrer';
-      toast('Échec : '+e.message+(newPhoto||newPdf?' — connectez-vous à Drive pour ajouter des fichiers':''));
+      toast('Échec : '+e.message+(total?' — connectez-vous à Drive pour ajouter des fichiers':''));
     }
   }},'Enregistrer');
-  openSheet(f,{label:old?'Annuler':'Annuler',foot:[save]});
+  openSheet(f,{label:'Annuler',foot:[save]});
 }
 function openFilters(){
   const S=state.data.settings, F=state.f;
@@ -754,53 +876,69 @@ function renderTextiles(){
   else em.classList.add('hidden');
 }
 function textileCard(t){
+  const th=t.photos[0]?t.photos[0].thumb:t.thumb;
   return h('button',{class:'card',onclick:()=>openTextileDetail(t.id)},
-    h('div',{class:'th'}, t.thumb? h('img',{src:t.thumb,alt:'',loading:'lazy'}) : icoImg('tis')),
+    h('div',{class:'th'}, th? h('img',{src:th,alt:'',loading:'lazy'}) : icoImg('tis')),
     h('div',{style:'min-width:0'},
       h('div',{class:'nm'},t.name),
-      h('div',{class:'mt'},[t.material,t.color].filter(Boolean).join(' · ')||' '),
+      h('div',{class:'mt'},[t.material,t.color].filter(Boolean).join(' · ')||' '),
       h('div',{class:'pl'},
-        t.length && h('span',{class:'pill g'},t.length+' m'),
-        t.width && h('span',{class:'pill'},t.width+' cm'),
+        t.length && h('span',{class:'pill g'},t.length+' cm'),
+        t.width && h('span',{class:'pill'},'laize '+t.width+' cm'),
+        t.photos.length>1 && h('span',{class:'pill n'},t.photos.length+' photos'),
         t.favorite && h('span',{class:'pill y'},'★ Favori'))),
     h('span',{class:'chev'},ic('chev')));
 }
 function openTextileDetail(id){
   const t=state.data.textiles.find(x=>x.id===id); if(!t) return;
-  const img=h('img',{class:'big',alt:t.name,src:t.thumb||''});
+  const img=h('img',{class:'big',alt:t.name,src:t.photos[0]?t.photos[0].thumb:''});
+  let cur=0; const gth=[];
+  const showPhoto=async i=>{
+    cur=i; const it=t.photos[i]; img.src=it.thumb||''; gth.forEach((b,k)=>b.classList.toggle('on',k===i));
+    try{ const b=await fileBlob(it.id,'image/jpeg'); if(cur===i) img.src=URL.createObjectURL(b); }catch(e){}
+  };
   const star=h('button',{class:'rb','aria-label':'Favori',style:t.favorite?'color:#f2b134':'',onclick:async()=>{t.favorite=!t.favorite;t.updated=Date.now();await commit();star.style.color=t.favorite?'#f2b134':'';star.replaceChildren(ic('star',t.favorite));renderTextiles();}},ic('star',t.favorite));
-  const rows=[['Matière',t.material],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' m'],['Acheté chez',t.store],['Entretien',t.care]].filter(r=>r[1]);
+  const rows=[['Matière',t.material],['Couleur',t.color],['Laize',t.width&&t.width+' cm'],['Métrage en stock',t.length&&t.length+' cm'],['Acheté chez',t.store],['Entretien',t.care]].filter(r=>r[1]);
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
     t.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},t.notes)));
-  const body=h('div',{}, (t.thumb||t.photoId)? img : null,
+  const strip = t.photos.length>1 ? h('div',{class:'gal'},...t.photos.map((it,i)=>{ const b=h('button',{class:'gth'+(i===0?' on':''),'aria-label':'Photo '+(i+1),onclick:()=>showPhoto(i)},h('img',{src:it.thumb||'',alt:''})); gth.push(b); return b; })) : null;
+  const body=h('div',{}, t.photos.length? img : null, strip,
     h('div',{class:'dtitle'},t.name),
     h('div',{class:'row'},
       h('button',{class:'btn',onclick:()=>openTextileForm(t.id)},ic('edit'),'Modifier'),
       h('button',{class:'btn dng',onclick:async()=>{ if(!confirm('Mettre ce tissu à la corbeille ?')) return; t.deleted=true;t.deletedAt=Date.now();t.updated=Date.now(); await commit(); closeSheet(); render(); toast('Tissu mis à la corbeille'); }},ic('trash'),'Corbeille')),
     (rows.length||t.notes)? info : null);
   openSheet(body,{label:'Tissus',actions:[star]});
-  if (t.photoId) fileBlob(t.photoId,'image/jpeg').then(b=>{img.src=URL.createObjectURL(b)}).catch(()=>{});
+  if (t.photos[0]) showPhoto(0);
 }
 function openTextileForm(id){
   const old = id && state.data.textiles.find(x=>x.id===id);
   const t = old ? clone(old) : normTextile({id:uid()});
   const S = state.data.settings;
-  let newPhoto=null;
+  const photoItems = t.photos.map(x=>Object.assign({kind:'old'},x));
   const mats=[...S.fabrics]; if(t.material&&!mats.includes(t.material)) mats.push(t.material);
-  const prev=h('img',{class:'big',style:t.thumb?'margin-bottom:6px':'display:none',src:t.thumb||''});
-  const photoIn=h('input',{type:'file',accept:'image/*',onchange:e=>{newPhoto=e.target.files[0]||null;if(newPhoto){prev.src=URL.createObjectURL(newPhoto);prev.style.display='block'}}});
+  const photoBox=h('div',{class:'pgrid'});
+  const drawPhotos=()=>photoBox.replaceChildren(
+    ...photoItems.map((it,i)=>h('div',{class:'pthumb'},
+      h('img',{src:it.kind==='new'?it.url:(it.thumb||''),alt:''}),
+      i===0 ? h('span',{class:'pbadge'},'Principale')
+            : h('button',{type:'button',class:'pmk','aria-label':'Définir comme photo principale',onclick:()=>{photoItems.unshift(photoItems.splice(i,1)[0]);drawPhotos();}},ic('star',true)),
+      h('button',{type:'button',class:'px','aria-label':'Retirer la photo',onclick:()=>{photoItems.splice(i,1);drawPhotos();}},'×'))),
+    h('label',{class:'padd'},ic('plus'),h('span',{},'Photos'),h('input',{type:'file',accept:'image/*',multiple:true,style:'display:none',onchange:e=>{
+      for (const f of e.target.files) photoItems.push({kind:'new',file:f,url:URL.createObjectURL(f),name:f.name});
+      e.target.value=''; drawPhotos(); }})));
+  drawPhotos();
   const txt=(n,lab,ph,mode)=>h('label',{class:'f'},lab,h('input',{type:'text',name:n,value:t[n],placeholder:ph||'',inputmode:mode||'text',autocomplete:'off'}));
   const f=h('form',{onsubmit:e=>e.preventDefault()},
-    prev,
-    h('label',{class:'f'},'Photo du tissu',photoIn),
-    h('label',{class:'f'},'Nom *',h('input',{type:'text',name:'name',value:t.name,autocomplete:'off'})),
+    h('label',{class:'f'},'Photos du tissu'), h('div',{class:'fhint'},'La première est la photo principale. Touchez l\'étoile d\'une autre photo pour la choisir à la place.'), photoBox,
+    h('label',{class:'f',style:'margin-top:20px'},'Nom *',h('input',{type:'text',name:'name',value:t.name,autocomplete:'off'})),
     h('div',{class:'two'},
       h('label',{class:'f'},'Matière',h('select',{name:'material'},h('option',{value:''},'—'),...mats.map(x=>h('option',{value:x,selected:x===t.material},x)))),
       txt('color','Couleur','ex. vert sauge')),
     h('div',{class:'two'},
       txt('width','Laize (cm)','ex. 140','decimal'),
-      txt('length','Métrage en stock (m)','ex. 2,5','decimal')),
+      txt('length','Métrage en stock (cm)','ex. 250','decimal')),
     txt('store','Acheté chez'),
     txt('care','Entretien','ex. lavage 30 °'),
     h('label',{class:'f'},'Notes',h('textarea',{name:'notes'},t.notes)),
@@ -808,22 +946,33 @@ function openTextileForm(id){
   const save=h('button',{class:'btn pri',onclick:async()=>{
     const v=n=>f.querySelector('[name="'+n+'"]').value.trim();  // (f.elements.length serait le nombre de champs, pas le champ « length »)
     if(!v('name')){ toast('Le nom est obligatoire'); return; }
-    save.disabled=true; save.textContent='Enregistrement…';
+    save.disabled=true;
+    const total=photoItems.filter(x=>x.kind==='new').length; let done=0;
+    const tick=()=>{ save.textContent= total? `Envoi des photos… ${done}/${total}` : 'Enregistrement…'; }; tick();
     try{
-      if (newPhoto){
-        const full=await resize(newPhoto,1600,.85), th=await resize(newPhoto,360,.72);
-        const pid=await uploadFile(full.blob,v('name').replace(/[^\w\- ]+/g,'')+'-tissu.jpg','image/jpeg');
-        if(t.photoId) trashFile(t.photoId);
-        t.photoId=pid; t.thumb=th.canvas.toDataURL('image/jpeg',.72);
+      t.name=v('name'); const base=cleanName(t.name)||'Tissu';
+      for (const it of photoItems) if (it.kind==='new'){
+        const full=await resize(it.file,1600,.85), th=await resize(it.file,240,.66);
+        const n=photoItems.indexOf(it)+1;
+        const fid=await textileUpload(t,full.blob,`${base} - photo ${n}.jpg`,'image/jpeg');
+        Object.assign(it,{kind:'old',id:fid,thumb:th.canvas.toDataURL('image/jpeg',.66),parent:t.folderId}); done++; tick();
       }
-      Object.assign(t,{name:v('name'),material:v('material'),color:v('color'),width:v('width'),length:v('length'),store:v('store'),care:v('care'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
+      t.photos=photoItems.map(x=>({id:x.id,thumb:x.thumb||'',parent:x.parent||''}));
+      Object.assign(t,{photoId:t.photos[0]?t.photos[0].id:'',thumb:t.photos[0]?t.photos[0].thumb:''});
+      if (old){ const keep=new Set(t.photos.map(x=>x.id)); for (const it of old.photos) if(!keep.has(it.id)) trashFile(it.id); }
+      if (navigator.onLine && LS.signed){
+        if (old && t.folderId && old.name!==t.name) renameFile(t.folderId,base).catch(()=>{});
+        await tidyTextile(t);
+      }
+      const num=x=>x.replace(',','.');
+      Object.assign(t,{material:v('material'),color:v('color'),width:num(v('width')),length:num(v('length')),unit:'cm',store:v('store'),care:v('care'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked});
       t.updated=Date.now(); if(!t.created) t.created=t.updated;
       const i=state.data.textiles.findIndex(x=>x.id===t.id);
       if(i>=0) state.data.textiles[i]=t; else state.data.textiles.push(t);
       await commit(); closeSheet(); render(); toast('Tissu enregistré');
     }catch(e){
       save.disabled=false; save.textContent='Enregistrer';
-      toast('Échec : '+e.message+(newPhoto?' — connectez-vous à Drive pour ajouter une photo':''));
+      toast('Échec : '+e.message+(total?' — connectez-vous à Drive pour ajouter des photos':''));
     }
   }},'Enregistrer');
   openSheet(f,{label:'Annuler',foot:[save]});
