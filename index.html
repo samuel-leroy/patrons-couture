@@ -242,7 +242,7 @@ async function kvSet(k,v){const db=await idb();return new Promise((res,rej)=>{co
 
 /* ============ MODÈLE DE DONNÉES (jamais de perte) ============ */
 function normRec(p){
-  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],matTypes:[],compositions:[],matV:0,creator:'',difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
+  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],matTypes:[],compositions:[],matV:0,yardage:[],creator:'',difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
     photoId:'',thumb:'',pdfId:'',pdfName:'',photos:[],pdfs:[],folderId:'',photosFolderId:'',pdfFolderId:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
   // anciennes fiches (une seule photo / un seul PDF) : on les range dans les nouvelles listes, sans rien supprimer
   // ancien champ « tissus conseillés » : Jersey → type de matière, le reste → composition (l'ancien champ est conservé)
@@ -725,6 +725,7 @@ function openDetail(id){
   const info=h('div',{class:'info'},
     ...rows.map(([k,v])=>h('div',{class:'kv'},h('span',{},k),h('span',{},v))),
     p.matTypes.length>0 && h('div',{class:'kv'},h('span',{},'Type de matière'),h('span',{},p.matTypes.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
+    p.yardage.length>0 && h('div',{class:'kv'},h('span',{},'Métrage nécessaire'),h('span',{},...p.yardage.map((y,i)=>h('div',{},(y.label?y.label+' : ':(i>0?'Matière '+(i+1)+' : ':''))+y.cm+' cm')))),
     p.compositions.length>0 && h('div',{class:'kv'},h('span',{},'Composition'),h('span',{},p.compositions.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.tags.length>0 && h('div',{class:'kv'},h('span',{},'Tags'),h('span',{},p.tags.map(x=>h('span',{class:'pill n',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},p.notes)));
@@ -737,7 +738,7 @@ function openDetail(id){
     h('div',{class:'row'},
       h('button',{class:'btn',onclick:()=>openForm(p.id)},ic('edit'),'Modifier'),
       h('button',{class:'btn dng',onclick:async()=>{ if(!confirm('Mettre ce patron à la corbeille ?')) return; p.deleted=true;p.deletedAt=Date.now();p.updated=Date.now(); await commit(); closeSheet(); render(); toast('Patron mis à la corbeille'); }},ic('trash'),'Corbeille')),
-    (rows.length||p.matTypes.length||p.compositions.length||p.tags.length||p.notes)? info : null);
+    (rows.length||p.yardage.length||p.matTypes.length||p.compositions.length||p.tags.length||p.notes)? info : null);
   openSheet(body,{label:'Patrons',actions:[star]});
   if (p.photos.length) showPhoto(0);
 }
@@ -762,6 +763,15 @@ function openForm(id){
   const chipBox=(set,list)=>{ const box=h('div',{style:'margin-top:8px;display:flex;flex-wrap:wrap;gap:8px'});
     const draw=()=>box.replaceChildren(...[...list,...[...set].filter(x=>!list.includes(x))].map(x=>h('button',{type:'button',class:'chip'+(set.has(x)?' on':''),onclick:()=>{set.has(x)?set.delete(x):set.add(x);draw()}},x)));
     draw(); return box; };
+  const yard=p.yardage.length? p.yardage.map(x=>({label:x.label||'',cm:x.cm||''})) : [{label:'',cm:''}];
+  const yardBox=h('div',{});
+  const drawYard=()=>yardBox.replaceChildren(
+    ...yard.map((y,i)=>h('div',{style:'display:flex;gap:8px;align-items:center;margin-top:8px'},
+      h('input',{type:'text',value:y.label,placeholder:i===0?'Tissu principal':'ex. doublure, renfort',autocomplete:'off',style:'flex:1;min-width:0',oninput:e=>{y.label=e.target.value}}),
+      h('input',{type:'text',value:y.cm,placeholder:'cm',inputmode:'decimal',autocomplete:'off',style:'width:86px',oninput:e=>{y.cm=e.target.value}}),
+      i>0 ? h('button',{type:'button',class:'px2','aria-label':'Retirer cette ligne',onclick:()=>{yard.splice(i,1);drawYard();}},'×') : null)),
+    h('button',{type:'button',class:'btn',style:'margin-top:10px',onclick:()=>{yard.push({label:'',cm:''});drawYard();}},ic('plus'),'Ajouter une matière'));
+  drawYard();
   const typeBox=chipBox(mTypes,S.matTypes), compBox=chipBox(comps,S.compositions);
   const photoBox=h('div',{class:'pgrid'});
   const drawPhotos=()=>photoBox.replaceChildren(
@@ -796,6 +806,7 @@ function openForm(id){
     h('div',{class:'lbl',style:'margin:18px 0 0'},'Matière'),
     h('label',{class:'f'},'Type de matière',typeBox),
     h('label',{class:'f'},'Composition',compBox),
+    h('label',{class:'f'},'Métrage nécessaire (cm)',yardBox),
     h('label',{class:'f'},'Statut',select('status',STATUSES,p.status)),
     h('label',{class:'f'},'Source / marque du patron',h('input',{type:'text',name:'source',value:p.source})),
     h('label',{class:'f'},'Tags (séparés par des virgules)',h('input',{type:'text',name:'tags',value:p.tags.join(', ')})),
@@ -829,7 +840,7 @@ function openForm(id){
         if (old && p.folderId && old.name!==p.name) renameFile(p.folderId,base).catch(()=>{});
         await tidyFiles(p);
       }
-      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
+      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),source:v('source'),notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,yardage:yard.map(y=>({label:y.label.trim(),cm:y.cm.trim().replace(',','.')})).filter(y=>y.cm),tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
       p.updated=Date.now(); if(!p.created) p.created=p.updated;
       const i=state.data.patterns.findIndex(x=>x.id===p.id);
       if(i>=0) state.data.patterns[i]=p; else state.data.patterns.push(p);
