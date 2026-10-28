@@ -187,10 +187,11 @@ const DEFAULT_SETTINGS = {
   knitCategories: ['Pull','Gilet','Bonnet','Écharpe / Snood','Chaussettes','Plaid / Couverture','Doudou','Accessoire','Autre'],
   woolWeights: ['Dentelle','Fine','Moyenne','Épaisse','Très épaisse'],
   needleTypes: ['Crochet','Tricot'],
+  strandCounts: ['1','2','3'],
   woolComps: ['Laine mérinos','Laine','Coton','Acrylique','Mohair','Alpaga','Cachemire']
 };
 const STATUSES = ['Fait','Non fait'];
-const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',matTypes:'Type de matière',compositions:'Composition',knitCategories:'Catégories (tricot)',woolWeights:'Grosseur du fil (tricot)',woolComps:'Composition de la laine (tricot)',needleTypes:'Type d\'aiguilles (tricot)'};
+const LIST_LABELS = {categories:'Catégories',persons:'Pour qui',seasons:'Saisons',matTypes:'Type de matière',compositions:'Composition',knitCategories:'Catégories (tricot)',woolWeights:'Grosseur du fil (tricot)',woolComps:'Composition de la laine (tricot)',needleTypes:'Type d\'aiguilles (tricot)',strandCounts:'Nombre de fils ensemble (tricot)'};
 const KINDS = {
   patterns:{key:'patterns',view:'patrons',f:'f',cats:'categories',typeList:'matTypes',compList:'compositions',folder:'garments',one:'patron',many:'patrons',Many:'Patrons',ico:'pat',
     sec:'Matière',typeLab:'Type de matière',compLab:'Composition',yardLab:'Métrage nécessaire',yardSuf:' cm',yardPh:'cm',yardIn:'Métrage nécessaire (cm)',photoLab:'Photos du vêtement',
@@ -264,7 +265,7 @@ async function kvSet(k,v){const db=await idb();return new Promise((res,rej)=>{co
 
 /* ============ MODÈLE DE DONNÉES (jamais de perte) ============ */
 function normRec(p){
-  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],matTypes:[],compositions:[],matV:0,yardage:[],needles:'',needleType:'',creator:'',difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
+  const r = Object.assign({id:'',name:'',category:'',person:'',season:'',fabrics:[],matTypes:[],compositions:[],matV:0,yardage:[],needles:'',needleType:'',strands:'',creator:'',difficulty:'',source:'',sizes:'',status:'',tags:[],notes:'',favorite:false,
     photoId:'',thumb:'',pdfId:'',pdfName:'',photos:[],pdfs:[],folderId:'',photosFolderId:'',pdfFolderId:'',created:0,updated:0,deleted:false,deletedAt:0}, p);
   // anciennes fiches (une seule photo / un seul PDF) : on les range dans les nouvelles listes, sans rien supprimer
   // ancien champ « tissus conseillés » : Jersey → type de matière, le reste → composition (l'ancien champ est conservé)
@@ -761,6 +762,7 @@ function openDetail(id){
     p.matTypes.length>0 && h('div',{class:'kv'},h('span',{},k.typeLab),h('span',{},p.matTypes.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.compositions.length>0 && h('div',{class:'kv'},h('span',{},k.compLab),h('span',{},p.compositions.map(x=>h('span',{class:'pill',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.needleType && h('div',{class:'kv'},h('span',{},'Type d\'aiguilles'),h('span',{},p.needleType)),
+    p.strands && h('div',{class:'kv'},h('span',{},'Nombre de fils ensemble'),h('span',{},p.strands)),
     p.yardage.length>0 && h('div',{class:'kv'},h('span',{},k.yardLab),h('span',{},...p.yardage.map((y,i)=>h('div',{},(y.label?y.label+' : ':(i>0?k.sec+' '+(i+1)+' : ':''))+(k.key==='knits'?yarnText(y):y.cm+k.yardSuf))))),
     p.tags.length>0 && h('div',{class:'kv'},h('span',{},'Tags'),h('span',{},p.tags.map(x=>h('span',{class:'pill n',style:'margin:0 4px 4px 0;display:inline-block'},x)))),
     p.notes && h('div',{class:'kv'},h('span',{},'Notes'),h('span',{style:'white-space:pre-wrap'},p.notes)));
@@ -773,7 +775,7 @@ function openDetail(id){
     h('div',{class:'row'},
       h('button',{class:'btn',onclick:()=>openForm(p.id)},ic('edit'),'Modifier'),
       h('button',{class:'btn dng',onclick:async()=>{ if(!confirm(k.trashQ)) return; p.deleted=true;p.deletedAt=Date.now();p.updated=Date.now(); await commit(); closeSheet(); render(); toast(k.trashed); }},ic('trash'),'Corbeille')),
-    (rows.length||p.yardage.length||p.needleType||p.matTypes.length||p.compositions.length||p.tags.length||p.notes)? info : null);
+    (rows.length||p.yardage.length||p.needleType||p.strands||p.matTypes.length||p.compositions.length||p.tags.length||p.notes)? info : null);
   openSheet(body,{label:k.Many,actions:[star]});
   if (p.photos.length) showPhoto(0);
 }
@@ -857,6 +859,7 @@ function openForm(id){
     h('label',{class:'f'},k.typeLab,typeBox),
     h('label',{class:'f'},k.compLab,compBox),
     knit ? h('label',{class:'f'},'Type d\'aiguilles',select('needleType',S.needleTypes,p.needleType)) : null,
+    knit ? h('label',{class:'f'},'Nombre de fil ensemble',select('strands',S.strandCounts,p.strands)) : null,
     h(knit?'div':'label',{class:'f'},k.yardIn,yardBox),
     h('label',{class:'f'},'Statut',select('status',STATUSES,p.status)),
     h('label',{class:'f'},'Tags (séparés par des virgules)',h('input',{type:'text',name:'tags',value:p.tags.join(', ')})),
@@ -890,7 +893,7 @@ function openForm(id){
         if (old && p.folderId && old.name!==p.name) renameFile(p.folderId,base).catch(()=>{});
         await tidyFiles(p,k.folder);
       }
-      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),needleType:knit?v('needleType'):p.needleType,notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,yardage:knit ? yard.map(y=>({label:y.label.trim(),cm:'',g:y.g.trim().replace(',','.'),m:y.m.trim().replace(',','.'),n:y.n.trim().replace(',','.')})).filter(y=>y.g||y.m||y.n||y.label) : yard.map(y=>({label:y.label.trim(),cm:y.cm.trim().replace(',','.')})).filter(y=>y.cm),tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
+      Object.assign(p,{category:v('category'),person:v('person'),season:v('season'),difficulty:v('difficulty'),status:v('status'),creator:v('creator'),needleType:knit?v('needleType'):p.needleType,strands:knit?v('strands'):p.strands,notes:f.querySelector('[name=notes]').value.trim(),favorite:f.querySelector('[name=favorite]').checked,matTypes:[...mTypes],compositions:[...comps],matV:1,yardage:knit ? yard.map(y=>({label:y.label.trim(),cm:'',g:y.g.trim().replace(',','.'),m:y.m.trim().replace(',','.'),n:y.n.trim().replace(',','.')})).filter(y=>y.g||y.m||y.n||y.label) : yard.map(y=>({label:y.label.trim(),cm:y.cm.trim().replace(',','.')})).filter(y=>y.cm),tags:v('tags').split(',').map(x=>x.trim()).filter(Boolean)});
       p.updated=Date.now(); if(!p.created) p.created=p.updated;
       const i=state.data[k.key].findIndex(x=>x.id===p.id);
       if(i>=0) state.data[k.key][i]=p; else state.data[k.key].push(p);
